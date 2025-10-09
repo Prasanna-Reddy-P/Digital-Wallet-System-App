@@ -1,0 +1,101 @@
+# =====================
+# Build Tools
+# =====================
+
+# Gradle
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# =====================
+# IDE Files
+# =====================
+
+# IntelliJ IDEA
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# Spring Tool Suite (STS)
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+# Eclipse
+.metadata/
+*.classpath
+*.project
+*.settings/
+bin/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+
+# =====================
+# OS Files
+# =====================
+.DS_Store
+Thumbs.db
+
+# =====================
+# Java / Spring
+# =====================
+*.class
+*.log
+*.jar
+*.war
+*.ear
+
+# =====================
+# Spring Boot Config / Sensitive Files
+# =====================
+application.properties
+application.yml
+*.keystore
+*.jks
+
+# =====================
+# Only track src and SQL_DataBase folder
+# =====================
+# Ignore everything else in root
+/*
+# Keep src folder tracked
+!/src
+# Keep SQL_DataBase folder tracked
+!/SQL_DataBase
+!/SQL_DataBase/*.sql
+# Keep README and PDFs
+!README.md
+!**/*.pdf
+# Keep .gitignore tracked
+!.gitignore
