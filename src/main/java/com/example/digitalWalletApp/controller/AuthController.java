@@ -37,6 +37,10 @@ public class AuthController {
 
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+
+        // ✅ Set default role here
+        user.setRole("USER");  // Default normal user
+
         User savedUser = userRepository.save(user);
 
 

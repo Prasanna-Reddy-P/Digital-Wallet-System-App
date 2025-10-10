@@ -11,18 +11,20 @@ public class Transaction {
 
     private Double amount;
     private String type; // "DEBIT" or "CREDIT"
-    private LocalDateTime createdAt;
+
+    private LocalDateTime timestamp; // <-- renamed from createdAt for clarity
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     public Transaction() {}
+
     public Transaction(User user, Double amount, String type) {
         this.user = user;
         this.amount = amount;
         this.type = type;
-        this.createdAt = LocalDateTime.now();
+        this.timestamp = LocalDateTime.now(); // set automatically
     }
 
     // getters & setters
@@ -31,8 +33,8 @@ public class Transaction {
     public void setAmount(Double amount) { this.amount = amount; }
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getTimestamp() { return timestamp; }
+    public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
 }
