@@ -43,6 +43,8 @@ public class User {
         return id;
     }
 
+    public void setId(Long id) {}
+
     public String getName() {
         return name;
     }
