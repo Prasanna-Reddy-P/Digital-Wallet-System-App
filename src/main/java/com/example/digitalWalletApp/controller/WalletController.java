@@ -68,7 +68,7 @@ public class WalletController {
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
             logger.warn("Unauthorized attempt to load money");
-            return ResponseEntity.status(401).body("Unauthorized");
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
 
         try {
@@ -76,8 +76,13 @@ public class WalletController {
             logger.info("Money successfully loaded for user {}: newBalance={}", user.getEmail(), response.get("balance"));
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            logger.error("Failed to load money for user {}: {}", user.getEmail(), e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            // Validation error is expected — log as WARN, not ERROR
+            logger.warn("Failed to load money for user {}: {}", user.getEmail(), e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage(),
+                    "minAmount", walletService.getWalletProperties().getMinAmount(),
+                    "maxAmount", walletService.getWalletProperties().getMaxAmount()
+            ));
         }
     }
 
@@ -89,7 +94,7 @@ public class WalletController {
         User sender = userService.getUserFromToken(authHeader);
         if (sender == null) {
             logger.warn("Unauthorized attempt to transfer funds");
-            return ResponseEntity.status(401).body("Unauthorized");
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
 
         try {
@@ -97,8 +102,14 @@ public class WalletController {
             logger.info("Transfer completed successfully for sender {} to receiverId={}", sender.getEmail(), request.getReceiverId());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            logger.error("Transfer failed for sender {}: {}", sender.getEmail(), e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            // Validation error is expected — log as WARN
+            logger.warn("Transfer failed for sender {}: {}", sender.getEmail(), e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage(),
+                    "minAmount", walletService.getWalletProperties().getMinAmount(),
+                    "maxAmount", walletService.getWalletProperties().getMaxAmount()
+            ));
         }
     }
+
 }

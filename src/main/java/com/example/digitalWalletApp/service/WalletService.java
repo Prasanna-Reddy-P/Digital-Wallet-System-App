@@ -1,5 +1,6 @@
 package com.example.digitalWalletApp.service;
 
+import com.example.digitalWalletApp.config.WalletProperties;
 import com.example.digitalWalletApp.model.User;
 import com.example.digitalWalletApp.model.Wallet;
 import com.example.digitalWalletApp.model.Transaction;
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+
 import java.util.*;
 
 @Service
@@ -21,13 +23,20 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
+    private final WalletProperties walletProperties;
 
     public WalletService(WalletRepository walletRepository,
                          TransactionRepository transactionRepository,
-                         UserRepository userRepository) {
+                         UserRepository userRepository,
+                         WalletProperties walletProperties) {
         this.walletRepository = walletRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
+        this.walletProperties = walletProperties;
+    }
+
+    public WalletProperties getWalletProperties() {  // <-- add getter
+        return walletProperties;
     }
 
     // Get wallet; create new if not exists
@@ -44,15 +53,27 @@ public class WalletService {
                 });
     }
 
+    // --- Helper method to validate transaction amount ---
+    private void validateAmount(double amount, String operation) {
+        if (amount <= 0) {
+            logger.warn("Invalid {} amount {} requested", operation, amount);
+            throw new IllegalArgumentException("Amount must be greater than 0");
+        }
+        if (amount < walletProperties.getMinAmount() || amount > walletProperties.getMaxAmount()) {
+            logger.warn("Invalid {} amount {}. Allowed range: {} - {}",
+                    operation, amount, walletProperties.getMinAmount(), walletProperties.getMaxAmount());
+            throw new IllegalArgumentException(
+                    "Transaction amount must be between " + walletProperties.getMinAmount()
+                            + " and " + walletProperties.getMaxAmount());
+        }
+    }
+
     // Load money into wallet
     @Transactional
     public Map<String, Object> loadMoney(User user, double amount) {
         logger.info("Initiating wallet load request for user {} with amount {}", user.getEmail(), amount);
 
-        if (amount <= 0) {
-            logger.warn("Invalid load amount {} requested by user {}", amount, user.getEmail());
-            throw new IllegalArgumentException("Amount must be greater than 0");
-        }
+        validateAmount(amount, "load"); // ✅ validate dynamically
 
         Wallet wallet = getWallet(user);
         double oldBalance = wallet.getBalance();
@@ -77,10 +98,7 @@ public class WalletService {
         logger.info("Transfer initiated: sender={}, recipientId={}, amount={}",
                 sender.getEmail(), recipientId, amount);
 
-        if (amount <= 0) {
-            logger.warn("Invalid transfer amount {} from user {}", amount, sender.getEmail());
-            throw new IllegalArgumentException("Amount must be greater than 0");
-        }
+        validateAmount(amount, "transfer"); // ✅ validate dynamically
 
         Optional<User> recipientOpt = userRepository.findById(recipientId);
         if (recipientOpt.isEmpty()) {
@@ -98,7 +116,6 @@ public class WalletService {
         User recipient = recipientOpt.get();
         Wallet recipientWallet = getWallet(recipient);
 
-        // Update balances
         double senderOldBalance = senderWallet.getBalance();
         double recipientOldBalance = recipientWallet.getBalance();
 

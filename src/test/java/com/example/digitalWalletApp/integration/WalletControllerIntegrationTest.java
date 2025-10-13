@@ -7,6 +7,8 @@ import com.example.digitalWalletApp.repository.TransactionRepository;
 import com.example.digitalWalletApp.repository.WalletRepository;
 import com.example.digitalWalletApp.repository.UserRepository;
 import com.example.digitalWalletApp.service.WalletService;
+import com.example.digitalWalletApp.config.WalletProperties;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +40,9 @@ class WalletControllerIntegrationTest {
     @Mock
     UserRepository userRepository;
 
+    @Mock
+    WalletProperties walletProperties;
+
     @InjectMocks
     WalletService walletService;
 
@@ -53,14 +58,17 @@ class WalletControllerIntegrationTest {
 
         wallet = new Wallet(user);
         wallet.setBalance(100.0);
+
+        // Mock repository behavior
+        lenient().when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
+        lenient().when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(walletProperties.getMinAmount()).thenReturn(1.0);
+        lenient().when(walletProperties.getMaxAmount()).thenReturn(10000.0);
     }
 
     @Test
     void loadMoney_withValidAmount_increasesBalance() {
         double loadAmount = 50.0;
-        when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
-        when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
-
         log.info("=== TEST: Load money {} into wallet for user {} ===", loadAmount, user.getEmail());
 
         Map<String, Object> response = walletService.loadMoney(user, loadAmount);
@@ -86,21 +94,17 @@ class WalletControllerIntegrationTest {
     }
 
     @Test
-    void loadMoney_withLargeAmount_addsSuccessfully() {
-        double largeAmount = 1_000_000_000.0; // 1 billion
-        when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
-        when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
-
+    void loadMoney_withLargeAmount_throwsException() {
+        double largeAmount = 1_000_000.0; // above 10000
         log.info("=== TEST: Load large amount {} into wallet for user {} ===", largeAmount, user.getEmail());
 
-        Map<String, Object> response = walletService.loadMoney(user, largeAmount);
+        assertThatThrownBy(() -> walletService.loadMoney(user, largeAmount))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Transaction amount must be between 1.0 and 10000.0");
 
-        assertThat(wallet.getBalance()).isEqualTo(100.0 + largeAmount);
-        assertThat(response.get("message")).isEqualTo("Wallet loaded successfully");
-        verify(transactionRepository).save(any(Transaction.class));
-
-        log.info("[PASS] loadMoney_withLargeAmount_addsSuccessfully ✅\n");
+        log.info("[PASS] Loading large amount failed as expected ✅\n");
     }
+
 
     @Test
     void loadMoney_withZeroAmount_throwsException() {
@@ -117,8 +121,6 @@ class WalletControllerIntegrationTest {
 
     @Test
     void getWallet_whenWalletExists_returnsExistingWallet() {
-        when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
-
         Wallet result = walletService.getWallet(user);
 
         assertThat(result.getBalance()).isEqualTo(100.0);
@@ -130,7 +132,6 @@ class WalletControllerIntegrationTest {
     @Test
     void getWallet_whenWalletNotExists_createsAndSavesNewWallet() {
         when(walletRepository.findByUser(user)).thenReturn(Optional.empty());
-        when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Wallet result = walletService.getWallet(user);
 
