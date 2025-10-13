@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,6 +26,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
 
 @ExtendWith(MockitoExtension.class)
 class WalletControllerIntegrationTest {
@@ -58,13 +60,17 @@ class WalletControllerIntegrationTest {
 
         wallet = new Wallet(user);
         wallet.setBalance(100.0);
+        wallet.setDailySpent(0.0);                    // ensure dailySpent starts at 0
+        wallet.setLastTransactionDate(LocalDate.now()); // prevent resetDailyIfNewDay from resetting
 
         // Mock repository behavior
         lenient().when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
         lenient().when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(walletProperties.getMinAmount()).thenReturn(1.0);
         lenient().when(walletProperties.getMaxAmount()).thenReturn(10000.0);
+        lenient().when(walletProperties.getDailyLimit()).thenReturn(1000.0); // adjust if your service uses it
     }
+
 
     @Test
     void loadMoney_withValidAmount_increasesBalance() {
