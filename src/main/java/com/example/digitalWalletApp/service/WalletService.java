@@ -80,7 +80,7 @@ public class WalletService {
         wallet.setBalance(oldBalance + amount);
         walletRepository.save(wallet);
 
-        Transaction transaction = new Transaction(user, amount, "CREDIT");
+        Transaction transaction = new Transaction(user, amount, "SELF_CREDITED");
         transactionRepository.save(transaction);
 
         logger.info("Wallet load successful for user {}: oldBalance={}, newBalance={}, transactionId={}",
