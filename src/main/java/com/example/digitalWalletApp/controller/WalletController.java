@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,13 +35,21 @@ public class WalletController {
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
             logger.warn("Unauthorized attempt to access balance endpoint");
-            return ResponseEntity.status(401).body("Unauthorized");
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
 
         Wallet wallet = walletService.getWallet(user);
+        double remainingLimit = walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("balance", wallet.getBalance());
+        response.put("dailySpent", wallet.getDailySpent());
+        response.put("frozen", wallet.getFrozen());
+        response.put("remainingDailyLimit", Math.max(0, remainingLimit));
+
         logger.info("Fetched balance for user {}: {}", user.getEmail(), wallet.getBalance());
 
-        return ResponseEntity.ok(Map.of("balance", wallet.getBalance()));
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/transactions")
@@ -50,7 +59,7 @@ public class WalletController {
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
             logger.warn("Unauthorized attempt to fetch transactions");
-            return ResponseEntity.status(401).body("Unauthorized");
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
         }
 
         List<?> transactions = walletService.getTransactions(user);
@@ -73,16 +82,32 @@ public class WalletController {
 
         try {
             Map<String, Object> response = walletService.loadMoney(user, amount);
-            logger.info("Money successfully loaded for user {}: newBalance={}", user.getEmail(), response.get("balance"));
-            return ResponseEntity.ok(response);
+            Wallet wallet = walletService.getWallet(user);
+            double remainingLimit = walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent();
+
+            // Add remainingDailyLimit and frozen info
+            Map<String, Object> mutableResponse = new HashMap<>(response);
+            mutableResponse.put("remainingDailyLimit", Math.max(0, remainingLimit));
+            mutableResponse.put("frozen", wallet.getFrozen());
+
+            logger.info("Money successfully loaded for user {}: newBalance={}", user.getEmail(), wallet.getBalance());
+
+            return ResponseEntity.ok(mutableResponse);
         } catch (IllegalArgumentException e) {
-            // Validation error is expected — log as WARN, not ERROR
+            Wallet wallet = walletService.getWallet(user);
+            double remainingLimit = walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent();
+
+            // Include remaining limit and frozen even on failure
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+//            errorResponse.put("minAmount", walletService.getWalletProperties().getMinAmount());
+//            errorResponse.put("maxAmount", walletService.getWalletProperties().getMaxAmount());
+            errorResponse.put("remainingDailyLimit", Math.max(0, remainingLimit));
+            errorResponse.put("frozen", wallet.getFrozen());
+
             logger.warn("Failed to load money for user {}: {}", user.getEmail(), e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage(),
-                    "minAmount", walletService.getWalletProperties().getMinAmount(),
-                    "maxAmount", walletService.getWalletProperties().getMaxAmount()
-            ));
+
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 
@@ -99,17 +124,30 @@ public class WalletController {
 
         try {
             Map<String, Object> response = walletService.transferAmount(sender, request.getReceiverId(), request.getAmount());
+            Wallet senderWallet = walletService.getWallet(sender);
+            double remainingLimit = walletService.getWalletProperties().getDailyLimit() - senderWallet.getDailySpent();
+
+            Map<String, Object> mutableResponse = new HashMap<>(response);
+            mutableResponse.put("remainingDailyLimit", Math.max(0, remainingLimit));
+            mutableResponse.put("frozen", senderWallet.getFrozen());
+
             logger.info("Transfer completed successfully for sender {} to receiverId={}", sender.getEmail(), request.getReceiverId());
-            return ResponseEntity.ok(response);
+
+            return ResponseEntity.ok(mutableResponse);
         } catch (IllegalArgumentException e) {
-            // Validation error is expected — log as WARN
+            Wallet senderWallet = walletService.getWallet(sender);
+            double remainingLimit = walletService.getWalletProperties().getDailyLimit() - senderWallet.getDailySpent();
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+//            errorResponse.put("minAmount", walletService.getWalletProperties().getMinAmount());
+//            errorResponse.put("maxAmount", walletService.getWalletProperties().getMaxAmount());
+            errorResponse.put("remainingDailyLimit", Math.max(0, remainingLimit));
+            errorResponse.put("frozen", senderWallet.getFrozen());
+
             logger.warn("Transfer failed for sender {}: {}", sender.getEmail(), e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.getMessage(),
-                    "minAmount", walletService.getWalletProperties().getMinAmount(),
-                    "maxAmount", walletService.getWalletProperties().getMaxAmount()
-            ));
+
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
-
 }
