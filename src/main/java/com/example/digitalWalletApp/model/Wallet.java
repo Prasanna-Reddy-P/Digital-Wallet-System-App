@@ -11,8 +11,8 @@ public class Wallet {
 
     private Double balance;
 
-    @OneToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @OneToOne // creates 1 to 1 relationship between user and wallet.
+    @JoinColumn(name = "user_id", nullable = false) // nullable = false → Every wallet must be linked to a user; it cannot exist alone.
     private User user;
 
     public Wallet() {}

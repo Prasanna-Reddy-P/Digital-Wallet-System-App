@@ -62,13 +62,8 @@ class WalletControllerIntegrationTest {
         when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
 
         log.info("=== TEST: Load money {} into wallet for user {} ===", loadAmount, user.getEmail());
-        log.info("Initial wallet balance: {}", wallet.getBalance());
 
         Map<String, Object> response = walletService.loadMoney(user, loadAmount);
-
-        log.info("Attempted to add: {}", loadAmount);
-        log.info("Wallet balance after load: {}", wallet.getBalance());
-        log.info("Transaction response: {}", response.get("message"));
 
         assertThat(wallet.getBalance()).isEqualTo(150.0);
         assertThat(response.get("message")).isEqualTo("Wallet loaded successfully");
@@ -81,12 +76,11 @@ class WalletControllerIntegrationTest {
     void loadMoney_withNegativeAmount_throwsException() {
         double negativeAmount = -10;
         log.info("=== TEST: Load negative amount {} into wallet for user {} ===", negativeAmount, user.getEmail());
-        log.info("Initial wallet balance: {}", wallet.getBalance());
 
         assertThatThrownBy(() -> walletService.loadMoney(user, negativeAmount))
                 .as("Loading negative amount should throw exception")
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Amount must be > 0");
+                .hasMessage("Amount must be greater than 0");
 
         log.info("[PASS] Loading {} failed as expected: amount is negative ✅", negativeAmount);
     }
@@ -98,13 +92,8 @@ class WalletControllerIntegrationTest {
         when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
 
         log.info("=== TEST: Load large amount {} into wallet for user {} ===", largeAmount, user.getEmail());
-        log.info("Initial wallet balance: {}", wallet.getBalance());
 
         Map<String, Object> response = walletService.loadMoney(user, largeAmount);
-
-        log.info("Attempted to add: {}", largeAmount);
-        log.info("Wallet balance after load: {}", wallet.getBalance());
-        log.info("Transaction response: {}", response.get("message"));
 
         assertThat(wallet.getBalance()).isEqualTo(100.0 + largeAmount);
         assertThat(response.get("message")).isEqualTo("Wallet loaded successfully");
@@ -113,17 +102,15 @@ class WalletControllerIntegrationTest {
         log.info("[PASS] loadMoney_withLargeAmount_addsSuccessfully ✅\n");
     }
 
-
     @Test
     void loadMoney_withZeroAmount_throwsException() {
         double zeroAmount = 0;
         log.info("=== TEST: Load zero amount into wallet for user {} ===", user.getEmail());
-        log.info("Initial wallet balance: {}", wallet.getBalance());
 
         assertThatThrownBy(() -> walletService.loadMoney(user, zeroAmount))
                 .as("Loading zero amount should throw exception")
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Amount must be > 0");
+                .hasMessage("Amount must be greater than 0");
 
         log.info("[PASS] Loading zero amount failed as expected ✅");
     }
@@ -132,12 +119,8 @@ class WalletControllerIntegrationTest {
     void getWallet_whenWalletExists_returnsExistingWallet() {
         when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
 
-        log.info("=== TEST: Fetch existing wallet for user {} ===", user.getEmail());
-        log.info("Expected balance: {}", wallet.getBalance());
-
         Wallet result = walletService.getWallet(user);
 
-        log.info("Fetched wallet balance: {}", result.getBalance());
         assertThat(result.getBalance()).isEqualTo(100.0);
         verify(walletRepository, never()).save(any());
 
@@ -149,12 +132,8 @@ class WalletControllerIntegrationTest {
         when(walletRepository.findByUser(user)).thenReturn(Optional.empty());
         when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        log.info("=== TEST: Wallet does not exist, create new wallet for user {} ===", user.getEmail());
-        log.info("Initial balance should be 0.0");
-
         Wallet result = walletService.getWallet(user);
 
-        log.info("New wallet balance: {}", result.getBalance());
         assertThat(result.getBalance()).isZero();
         verify(walletRepository).save(any(Wallet.class));
 
@@ -165,12 +144,11 @@ class WalletControllerIntegrationTest {
     void transferAmount_withNegativeAmount_throwsException() {
         double negativeAmount = -50;
         log.info("=== TEST: Transfer negative amount {} should fail ===", negativeAmount);
-        log.info("Wallet balance before transfer: {}", wallet.getBalance());
 
         assertThatThrownBy(() -> walletService.transferAmount(user, 2L, negativeAmount))
                 .as("Negative transfer should throw exception")
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Amount must be > 0");
+                .hasMessage("Amount must be greater than 0");
 
         log.info("[PASS] Transfer failed as expected because amount is negative ✅\n");
     }
@@ -179,12 +157,11 @@ class WalletControllerIntegrationTest {
     void transferAmount_withZeroAmount_throwsException() {
         double zeroAmount = 0;
         log.info("=== TEST: Transfer zero amount should fail ===");
-        log.info("Wallet balance before transfer: {}", wallet.getBalance());
 
         assertThatThrownBy(() -> walletService.transferAmount(user, 2L, zeroAmount))
                 .as("Zero transfer should throw exception")
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Amount must be > 0");
+                .hasMessage("Amount must be greater than 0");
 
         log.info("[PASS] Transfer failed as expected because amount is zero ✅\n");
     }
@@ -198,12 +175,7 @@ class WalletControllerIntegrationTest {
 
         when(transactionRepository.findByUser(user)).thenReturn(List.of(t1));
 
-        log.info("=== TEST: Fetch transactions for user {} ===", user.getEmail());
-
         List<Transaction> txs = walletService.getTransactions(user);
-
-        log.info("Number of transactions fetched: {}", txs.size());
-        txs.forEach(tx -> log.info("Transaction - Type: {}, Amount: {}", tx.getType(), tx.getAmount()));
 
         assertThat(txs).hasSize(1);
         assertThat(txs.get(0).getAmount()).isEqualTo(50.0);

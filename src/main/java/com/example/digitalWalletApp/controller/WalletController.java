@@ -29,11 +29,11 @@ public class WalletController {
 
     @GetMapping("/balance")
     public ResponseEntity<?> getBalance(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        logger.info("Request to get wallet balance");
+        logger.info("Received request to fetch wallet balance");
 
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
-            logger.warn("Unauthorized access attempt to get balance");
+            logger.warn("Unauthorized attempt to access balance endpoint");
             return ResponseEntity.status(401).body("Unauthorized");
         }
 
@@ -45,16 +45,16 @@ public class WalletController {
 
     @GetMapping("/transactions")
     public ResponseEntity<?> getTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        logger.info("Request to get transactions");
+        logger.info("Received request to fetch transaction history");
 
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
-            logger.warn("Unauthorized access attempt to get transactions");
+            logger.warn("Unauthorized attempt to fetch transactions");
             return ResponseEntity.status(401).body("Unauthorized");
         }
 
         List<?> transactions = walletService.getTransactions(user);
-        logger.info("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
+        logger.info("User {} fetched {} transactions", user.getEmail(), transactions.size());
 
         return ResponseEntity.ok(transactions);
     }
@@ -63,20 +63,20 @@ public class WalletController {
     public ResponseEntity<?> loadMoney(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
                                        @RequestBody Map<String, Double> request) {
         double amount = request.getOrDefault("amount", 0.0);
-        logger.info("Request to load money: amount={} ", amount);
+        logger.info("Received wallet load request: amount={}", amount);
 
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
-            logger.warn("Unauthorized access attempt to load money");
+            logger.warn("Unauthorized attempt to load money");
             return ResponseEntity.status(401).body("Unauthorized");
         }
 
         try {
             Map<String, Object> response = walletService.loadMoney(user, amount);
-            logger.info("Money loaded successfully for user {}: new balance={}", user.getEmail(), response.get("balance"));
+            logger.info("Money successfully loaded for user {}: newBalance={}", user.getEmail(), response.get("balance"));
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            logger.error("Error loading money for user {}: {}", user.getEmail(), e.getMessage());
+            logger.error("Failed to load money for user {}: {}", user.getEmail(), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -84,20 +84,20 @@ public class WalletController {
     @PostMapping("/transfer")
     public ResponseEntity<?> transfer(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
                                       @RequestBody TransferRequest request) {
-        logger.info("Request to transfer money: amount={} to receiverId={}", request.getAmount(), request.getReceiverId());
+        logger.info("Received transfer request: receiverId={}, amount={}", request.getReceiverId(), request.getAmount());
 
         User sender = userService.getUserFromToken(authHeader);
         if (sender == null) {
-            logger.warn("Unauthorized access attempt to transfer money");
+            logger.warn("Unauthorized attempt to transfer funds");
             return ResponseEntity.status(401).body("Unauthorized");
         }
 
         try {
             Map<String, Object> response = walletService.transferAmount(sender, request.getReceiverId(), request.getAmount());
-            logger.info("Transfer successful from user {} to user {}: new balance={}", sender.getEmail(), request.getReceiverId(), response.get("balance"));
+            logger.info("Transfer completed successfully for sender {} to receiverId={}", sender.getEmail(), request.getReceiverId());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            logger.error("Error transferring money for user {}: {}", sender.getEmail(), e.getMessage());
+            logger.error("Transfer failed for sender {}: {}", sender.getEmail(), e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

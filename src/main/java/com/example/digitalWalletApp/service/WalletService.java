@@ -6,15 +6,17 @@ import com.example.digitalWalletApp.model.Transaction;
 import com.example.digitalWalletApp.repository.TransactionRepository;
 import com.example.digitalWalletApp.repository.WalletRepository;
 import com.example.digitalWalletApp.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class WalletService {
+
+    private static final Logger logger = LoggerFactory.getLogger(WalletService.class);
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
@@ -30,29 +32,38 @@ public class WalletService {
 
     // Get wallet; create new if not exists
     public Wallet getWallet(User user) {
+        logger.debug("Fetching wallet for user: {}", user.getEmail());
         return walletRepository.findByUser(user)
                 .orElseGet(() -> {
+                    logger.info("No wallet found for user {}. Creating new wallet.", user.getEmail());
                     Wallet newWallet = new Wallet(user);
                     newWallet.setBalance(0.0);
-                    return walletRepository.save(newWallet);
+                    Wallet savedWallet = walletRepository.save(newWallet);
+                    logger.info("New wallet created for user {} with ID {}", user.getEmail(), savedWallet.getId());
+                    return savedWallet;
                 });
     }
 
     // Load money into wallet
+    @Transactional
     public Map<String, Object> loadMoney(User user, double amount) {
+        logger.info("Initiating wallet load request for user {} with amount {}", user.getEmail(), amount);
+
         if (amount <= 0) {
-            throw new IllegalArgumentException("Amount must be > 0");
+            logger.warn("Invalid load amount {} requested by user {}", amount, user.getEmail());
+            throw new IllegalArgumentException("Amount must be greater than 0");
         }
 
         Wallet wallet = getWallet(user);
-        wallet.setBalance(wallet.getBalance() + amount);
+        double oldBalance = wallet.getBalance();
+        wallet.setBalance(oldBalance + amount);
         walletRepository.save(wallet);
 
-        Transaction transaction = new Transaction();
-        transaction.setUser(user);
-        transaction.setAmount(amount);
-        transaction.setType("CREDIT");
+        Transaction transaction = new Transaction(user, amount, "CREDIT");
         transactionRepository.save(transaction);
+
+        logger.info("Wallet load successful for user {}: oldBalance={}, newBalance={}, transactionId={}",
+                user.getEmail(), oldBalance, wallet.getBalance(), transaction.getId());
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Wallet loaded successfully");
@@ -61,18 +72,26 @@ public class WalletService {
     }
 
     // Transfer amount to another user
+    @Transactional
     public Map<String, Object> transferAmount(User sender, Long recipientId, double amount) {
+        logger.info("Transfer initiated: sender={}, recipientId={}, amount={}",
+                sender.getEmail(), recipientId, amount);
+
         if (amount <= 0) {
-            throw new IllegalArgumentException("Amount must be > 0");
+            logger.warn("Invalid transfer amount {} from user {}", amount, sender.getEmail());
+            throw new IllegalArgumentException("Amount must be greater than 0");
         }
 
         Optional<User> recipientOpt = userRepository.findById(recipientId);
         if (recipientOpt.isEmpty()) {
+            logger.error("Transfer failed: recipient with ID {} not found", recipientId);
             throw new IllegalArgumentException("Recipient not found");
         }
 
         Wallet senderWallet = getWallet(sender);
         if (senderWallet.getBalance() < amount) {
+            logger.warn("Transfer failed: Insufficient balance for user {}. Balance={}, requested={}",
+                    sender.getEmail(), senderWallet.getBalance(), amount);
             throw new IllegalArgumentException("Insufficient balance");
         }
 
@@ -80,24 +99,24 @@ public class WalletService {
         Wallet recipientWallet = getWallet(recipient);
 
         // Update balances
-        senderWallet.setBalance(senderWallet.getBalance() - amount);
-        recipientWallet.setBalance(recipientWallet.getBalance() + amount);
+        double senderOldBalance = senderWallet.getBalance();
+        double recipientOldBalance = recipientWallet.getBalance();
+
+        senderWallet.setBalance(senderOldBalance - amount);
+        recipientWallet.setBalance(recipientOldBalance + amount);
 
         walletRepository.save(senderWallet);
         walletRepository.save(recipientWallet);
 
-        // Create transactions
-        Transaction debit = new Transaction();
-        debit.setUser(sender);
-        debit.setAmount(amount);
-        debit.setType("DEBIT");
+        Transaction debit = new Transaction(sender, amount, "DEBIT");
+        Transaction credit = new Transaction(recipient, amount, "CREDIT");
         transactionRepository.save(debit);
-
-        Transaction credit = new Transaction();
-        credit.setUser(recipient);
-        credit.setAmount(amount);
-        credit.setType("CREDIT");
         transactionRepository.save(credit);
+
+        logger.info("Transfer successful: sender={} ({} -> {}), recipient={} ({} -> {}), amount={}, debitTxId={}, creditTxId={}",
+                sender.getEmail(), senderOldBalance, senderWallet.getBalance(),
+                recipient.getEmail(), recipientOldBalance, recipientWallet.getBalance(),
+                amount, debit.getId(), credit.getId());
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Transfer successful");
@@ -108,6 +127,9 @@ public class WalletService {
 
     // Get all transactions for user
     public List<Transaction> getTransactions(User user) {
-        return transactionRepository.findByUser(user);
+        logger.info("Fetching all transactions for user {}", user.getEmail());
+        List<Transaction> transactions = transactionRepository.findByUser(user);
+        logger.debug("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
+        return transactions;
     }
 }
