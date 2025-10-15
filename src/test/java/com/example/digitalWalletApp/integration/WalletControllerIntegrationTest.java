@@ -1,13 +1,18 @@
 package com.example.digitalWalletApp.integration;
 
+import com.example.digitalWalletApp.dto.LoadMoneyResponse;
+import com.example.digitalWalletApp.dto.TransactionDTO;
+import com.example.digitalWalletApp.dto.TransferResponse;
+import com.example.digitalWalletApp.model.Transaction;
 import com.example.digitalWalletApp.model.User;
 import com.example.digitalWalletApp.model.Wallet;
-import com.example.digitalWalletApp.model.Transaction;
 import com.example.digitalWalletApp.repository.TransactionRepository;
-import com.example.digitalWalletApp.repository.WalletRepository;
 import com.example.digitalWalletApp.repository.UserRepository;
+import com.example.digitalWalletApp.repository.WalletRepository;
 import com.example.digitalWalletApp.service.WalletService;
 import com.example.digitalWalletApp.config.WalletProperties;
+import com.example.digitalWalletApp.mapper.TransactionMapper;
+import com.example.digitalWalletApp.mapper.WalletMapper;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,13 +25,11 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-
 
 @ExtendWith(MockitoExtension.class)
 class WalletControllerIntegrationTest {
@@ -45,6 +48,12 @@ class WalletControllerIntegrationTest {
     @Mock
     WalletProperties walletProperties;
 
+    @Mock
+    WalletMapper walletMapper;
+
+    @Mock
+    TransactionMapper transactionMapper;
+
     @InjectMocks
     WalletService walletService;
 
@@ -60,27 +69,60 @@ class WalletControllerIntegrationTest {
 
         wallet = new Wallet(user);
         wallet.setBalance(100.0);
-        wallet.setDailySpent(0.0);                    // ensure dailySpent starts at 0
-        wallet.setLastTransactionDate(LocalDate.now()); // prevent resetDailyIfNewDay from resetting
+        wallet.setDailySpent(0.0);
+        wallet.setLastTransactionDate(LocalDate.now());
 
-        // Mock repository behavior
+        // Repository mocks
         lenient().when(walletRepository.findByUser(user)).thenReturn(Optional.of(wallet));
         lenient().when(walletRepository.save(any(Wallet.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(walletProperties.getMinAmount()).thenReturn(1.0);
-        lenient().when(walletProperties.getMaxAmount()).thenReturn(10000.0);
-        lenient().when(walletProperties.getDailyLimit()).thenReturn(1000.0); // adjust if your service uses it
-    }
+        lenient().when(walletProperties.getMaxAmount()).thenReturn(30000.0);
+        lenient().when(walletProperties.getDailyLimit()).thenReturn(50000.0);
 
+        // WalletMapper mocks
+        lenient().when(walletMapper.toLoadMoneyResponse(any(Wallet.class)))
+                .thenAnswer(inv -> {
+                    Wallet w = inv.getArgument(0);
+                    LoadMoneyResponse resp = new LoadMoneyResponse();
+                    resp.setBalance(w.getBalance());
+                    resp.setDailySpent(w.getDailySpent());
+                    resp.setFrozen(w.getFrozen());
+                    return resp;
+                });
+
+        lenient().when(walletMapper.toTransferResponse(any(Wallet.class)))
+                .thenAnswer(inv -> {
+                    Wallet w = inv.getArgument(0);
+                    TransferResponse resp = new TransferResponse();
+                    resp.setSenderBalance(w.getBalance());
+                    resp.setFrozen(w.getFrozen());
+                    return resp;
+                });
+
+        // TransactionMapper mocks
+        lenient().when(transactionMapper.toDTO(any(Transaction.class)))
+                .thenAnswer(inv -> {
+                    Transaction t = inv.getArgument(0);
+                    TransactionDTO dto = new TransactionDTO();
+                    dto.setAmount(t.getAmount());
+                    dto.setType(t.getType());
+                    dto.setUserEmail(t.getUser().getEmail());
+                    return dto;
+                });
+    }
 
     @Test
     void loadMoney_withValidAmount_increasesBalance() {
         double loadAmount = 50.0;
         log.info("=== TEST: Load money {} into wallet for user {} ===", loadAmount, user.getEmail());
 
-        Map<String, Object> response = walletService.loadMoney(user, loadAmount);
+        LoadMoneyResponse response = walletService.loadMoney(user, loadAmount);
 
         assertThat(wallet.getBalance()).isEqualTo(150.0);
-        assertThat(response.get("message")).isEqualTo("Wallet loaded successfully");
+        assertThat(response.getBalance()).isEqualTo(150.0);
+        assertThat(response.getMessage()).isEqualTo("Wallet loaded successfully");
+        assertThat(response.getRemainingDailyLimit()).isEqualTo(50000.0 - 50.0);
+        assertThat(response.getFrozen()).isFalse();
         verify(transactionRepository).save(any(Transaction.class));
 
         log.info("[PASS] loadMoney_withValidAmount_increasesBalance ✅\n");
@@ -101,16 +143,15 @@ class WalletControllerIntegrationTest {
 
     @Test
     void loadMoney_withLargeAmount_throwsException() {
-        double largeAmount = 1_000_000.0; // above 10000
+        double largeAmount = 1_000_000.0;
         log.info("=== TEST: Load large amount {} into wallet for user {} ===", largeAmount, user.getEmail());
 
         assertThatThrownBy(() -> walletService.loadMoney(user, largeAmount))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Transaction amount must be between 1.0 and 10000.0");
+                .hasMessage("Load amount must be between 1.0 and 30000.0");
 
         log.info("[PASS] Loading large amount failed as expected ✅\n");
     }
-
 
     @Test
     void loadMoney_withZeroAmount_throwsException() {
@@ -182,10 +223,12 @@ class WalletControllerIntegrationTest {
 
         when(transactionRepository.findByUser(user)).thenReturn(List.of(t1));
 
-        List<Transaction> txs = walletService.getTransactions(user);
+        List<TransactionDTO> txs = walletService.getTransactions(user);
 
         assertThat(txs).hasSize(1);
         assertThat(txs.get(0).getAmount()).isEqualTo(50.0);
+        assertThat(txs.get(0).getType()).isEqualTo("CREDIT");
+        assertThat(txs.get(0).getUserEmail()).isEqualTo(user.getEmail());
 
         log.info("[PASS] Transactions fetched successfully ✅\n");
     }
