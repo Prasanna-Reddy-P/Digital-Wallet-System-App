@@ -4,12 +4,12 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "transactions") // good practice to use plural table name
+@Table(name = "`transactions`")// good practice to use plural table name
 public class Transaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id; // ✅ PRIMARY KEY
 
     private Double amount;
 
@@ -19,7 +19,7 @@ public class Transaction {
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private User user; // ✅ FOREIGN KEY (references user.id)
 
     // --- Constructors ---
     public Transaction() {}

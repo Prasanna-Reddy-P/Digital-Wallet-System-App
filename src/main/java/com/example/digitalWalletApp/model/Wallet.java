@@ -4,17 +4,18 @@ import jakarta.persistence.*;
 import java.time.LocalDate;
 
 @Entity
+@Table(name = "`wallet`")
 public class Wallet {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id; // Primary Key
 
     private Double balance;
 
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private User user; // ✅ FOREIGN KEY (references user.id)
 
     // --- Daily limit tracking ---
     private Double dailySpent = 0.0;  // How much user has spent today
