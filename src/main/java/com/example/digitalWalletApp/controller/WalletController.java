@@ -1,6 +1,7 @@
 package com.example.digitalWalletApp.controller;
 
 import com.example.digitalWalletApp.dto.LoadMoneyResponse;
+import com.example.digitalWalletApp.dto.TransactionDTO;
 import com.example.digitalWalletApp.dto.TransferRequest;
 import com.example.digitalWalletApp.dto.TransferResponse;
 import com.example.digitalWalletApp.model.User;
@@ -29,105 +30,89 @@ public class WalletController {
         this.walletService = walletService;
     }
 
-    /** GET /balance **/
     @GetMapping("/balance")
-    public ResponseEntity<LoadMoneyResponse> getBalance(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        logger.info("Fetching wallet balance");
-
+    public ResponseEntity<?> getBalance(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+        logger.info("Fetching wallet balance request");
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
-            logger.warn("Unauthorized access to /balance");
-            return ResponseEntity.status(401).build();
+            logger.warn("Unauthorized balance request");
+            return ResponseEntity.status(401).body("Unauthorized");
         }
 
         Wallet wallet = walletService.getWallet(user);
-        double remainingLimit = walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent();
+        logger.info("User {} wallet balance fetched: {}", user.getEmail(), wallet.getBalance());
 
         LoadMoneyResponse response = new LoadMoneyResponse();
         response.setBalance(wallet.getBalance());
         response.setDailySpent(wallet.getDailySpent());
-        response.setRemainingDailyLimit(Math.max(0, remainingLimit));
+        response.setRemainingDailyLimit(walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent());
         response.setFrozen(wallet.getFrozen());
-        response.setMessage("Wallet fetched successfully");
+        response.setMessage("Wallet balance fetched successfully");
 
-        logger.info("Wallet balance for user {}: {}", user.getEmail(), wallet.getBalance());
         return ResponseEntity.ok(response);
     }
 
-    /** GET /transactions **/
     @GetMapping("/transactions")
-    public ResponseEntity<List<?>> getTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        logger.info("Fetching transaction history");
-
+    public ResponseEntity<?> getTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+        logger.info("Fetching transactions request");
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
-            logger.warn("Unauthorized access to /transactions");
-            return ResponseEntity.status(401).build();
+            logger.warn("Unauthorized transactions request");
+            return ResponseEntity.status(401).body("Unauthorized");
         }
 
-        List<?> transactions = walletService.getTransactions(user);
-        logger.info("User {} has {} transactions", user.getEmail(), transactions.size());
+        List<TransactionDTO> transactions = walletService.getTransactions(user);
+        logger.info("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
         return ResponseEntity.ok(transactions);
     }
 
-    /** POST /load **/
     @PostMapping("/load")
-    public ResponseEntity<LoadMoneyResponse> loadMoney(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
-                                                       @RequestBody TransferRequest request) {
-        double amount = request.getAmount();
-        logger.info("Load money request: amount={}", amount);
-
+    public ResponseEntity<?> loadMoney(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+                                       @RequestBody TransferRequest request) {
         User user = userService.getUserFromToken(authHeader);
         if (user == null) {
-            logger.warn("Unauthorized load money attempt");
-            return ResponseEntity.status(401).build();
+            logger.warn("Unauthorized wallet load attempt");
+            return ResponseEntity.status(401).body("Unauthorized");
         }
 
+        logger.info("Wallet load request: user={}, amount={}", user.getEmail(), request.getAmount());
+
         try {
-            LoadMoneyResponse response = walletService.loadMoney(user, amount);
-            Wallet wallet = walletService.getWallet(user);
-            response.setRemainingDailyLimit(Math.max(0, walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent()));
-            response.setFrozen(wallet.getFrozen());
-            logger.info("Money loaded successfully for user {}: newBalance={}", user.getEmail(), wallet.getBalance());
+            LoadMoneyResponse response = walletService.loadMoney(user, request.getAmount());
+            logger.info("Wallet load successful: user={}, newBalance={}", user.getEmail(), response.getBalance());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            logger.warn("Failed to load money for user {}: {}", user.getEmail(), e.getMessage());
             Wallet wallet = walletService.getWallet(user);
-            LoadMoneyResponse errorResponse = new LoadMoneyResponse();
-            errorResponse.setMessage(e.getMessage());
-            errorResponse.setRemainingDailyLimit(Math.max(0, walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent()));
-            errorResponse.setFrozen(wallet.getFrozen());
-            return ResponseEntity.badRequest().body(errorResponse);
+            double remainingLimit = walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent();
+            logger.warn("Wallet load failed for user {}: {}", user.getEmail(), e.getMessage());
+            return ResponseEntity.badRequest().body(
+                    String.format("Error: %s | Remaining limit: %.2f | Frozen: %b", e.getMessage(), remainingLimit, wallet.getFrozen())
+            );
         }
     }
 
-    /** POST /transfer **/
     @PostMapping("/transfer")
-    public ResponseEntity<TransferResponse> transfer(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
-                                                     @RequestBody TransferRequest request) {
-        logger.info("Transfer request: receiverId={}, amount={}", request.getReceiverId(), request.getAmount());
-
+    public ResponseEntity<?> transfer(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+                                      @RequestBody TransferRequest request) {
         User sender = userService.getUserFromToken(authHeader);
         if (sender == null) {
             logger.warn("Unauthorized transfer attempt");
-            return ResponseEntity.status(401).build();
+            return ResponseEntity.status(401).body("Unauthorized");
         }
+
+        logger.info("Transfer request: sender={}, receiverId={}, amount={}", sender.getEmail(), request.getReceiverId(), request.getAmount());
 
         try {
             TransferResponse response = walletService.transferAmount(sender, request.getReceiverId(), request.getAmount());
-            Wallet senderWallet = walletService.getWallet(sender);
-            response.setRemainingDailyLimit(Math.max(0, walletService.getWalletProperties().getDailyLimit() - senderWallet.getDailySpent()));
-            response.setFrozen(senderWallet.getFrozen());
-            logger.info("Transfer successful: sender {} -> recipientId={}, amount={}", sender.getEmail(), request.getReceiverId(), request.getAmount());
+            logger.info("Transfer successful: sender={}, receiverId={}, amount={}", sender.getEmail(), request.getReceiverId(), request.getAmount());
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
+            Wallet wallet = walletService.getWallet(sender);
+            double remainingLimit = walletService.getWalletProperties().getDailyLimit() - wallet.getDailySpent();
             logger.warn("Transfer failed for sender {}: {}", sender.getEmail(), e.getMessage());
-            Wallet senderWallet = walletService.getWallet(sender);
-            TransferResponse errorResponse = new TransferResponse();
-            errorResponse.setMessage(e.getMessage());
-            errorResponse.setRemainingDailyLimit(Math.max(0, walletService.getWalletProperties().getDailyLimit() - senderWallet.getDailySpent()));
-            errorResponse.setFrozen(senderWallet.getFrozen());
-            return ResponseEntity.badRequest().body(errorResponse);
+            return ResponseEntity.badRequest().body(
+                    String.format("Error: %s | Remaining limit: %.2f | Frozen: %b", e.getMessage(), remainingLimit, wallet.getFrozen())
+            );
         }
     }
 }

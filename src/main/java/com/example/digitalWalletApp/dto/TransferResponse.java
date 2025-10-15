@@ -15,7 +15,7 @@ public class TransferResponse {
     public Double getSenderBalance() { return senderBalance; }
     public void setSenderBalance(Double senderBalance) { this.senderBalance = senderBalance; }
 
-    public Double getRecipientBalance() { return recipientBalance; }
+    //public Double getRecipientBalance() { return recipientBalance; }
     public void setRecipientBalance(Double recipientBalance) { this.recipientBalance = recipientBalance; }
 
     public Double getRemainingDailyLimit() { return remainingDailyLimit; }
