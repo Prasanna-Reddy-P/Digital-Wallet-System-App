@@ -1,19 +1,24 @@
 package com.example.digitalWalletApp.service;
 
 import com.example.digitalWalletApp.config.WalletProperties;
+import com.example.digitalWalletApp.dto.LoadMoneyResponse;
+import com.example.digitalWalletApp.dto.TransactionDTO;
+import com.example.digitalWalletApp.dto.TransferResponse;
 import com.example.digitalWalletApp.model.User;
 import com.example.digitalWalletApp.model.Wallet;
 import com.example.digitalWalletApp.model.Transaction;
 import com.example.digitalWalletApp.repository.TransactionRepository;
-import com.example.digitalWalletApp.repository.WalletRepository;
 import com.example.digitalWalletApp.repository.UserRepository;
+import com.example.digitalWalletApp.repository.WalletRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class WalletService {
@@ -80,9 +85,8 @@ public class WalletService {
     }
 
     // Load money into wallet (SELF_CREDITED)
-    // Load money into wallet (SELF_CREDITED)
     @Transactional
-    public Map<String, Object> loadMoney(User user, double amount) {
+    public LoadMoneyResponse loadMoney(User user, double amount) {
         logger.info("Wallet load request initiated for user {}: amount={}", user.getEmail(), amount);
 
         validateAmount(amount, "load");
@@ -112,16 +116,18 @@ public class WalletService {
 
         logger.info("Wallet loaded successfully for user {}: newBalance={}", user.getEmail(), wallet.getBalance());
 
-        return Map.of(
-                "message", "Wallet loaded successfully",
-                "balance", wallet.getBalance(),
-                "dailySpent", wallet.getDailySpent()
-        );
+        LoadMoneyResponse response = new LoadMoneyResponse();
+        response.setBalance(wallet.getBalance());
+        response.setDailySpent(wallet.getDailySpent());
+        response.setRemainingDailyLimit(walletProperties.getDailyLimit() - wallet.getDailySpent());
+        response.setFrozen(wallet.getFrozen());
+        response.setMessage("Wallet loaded successfully");
+        return response;
     }
 
     // Transfer amount to another user
     @Transactional
-    public Map<String, Object> transferAmount(User sender, Long recipientId, double amount) {
+    public TransferResponse transferAmount(User sender, Long recipientId, double amount) {
         logger.info("Transfer request initiated: sender={}, recipientId={}, amount={}", sender.getEmail(), recipientId, amount);
 
         validateAmount(amount, "transfer");
@@ -175,21 +181,32 @@ public class WalletService {
 
         logger.info("Transfer successful: sender {} newBalance={}, recipient {} newBalance={}", sender.getEmail(), senderWallet.getBalance(), recipient.getEmail(), recipientWallet.getBalance());
 
-        return Map.of(
-                "message", "Transfer successful",
-                "amountTransferred", amount,
-                "senderBalance", senderWallet.getBalance(),
-                "recipientBalance", recipientWallet.getBalance(),
-                "dailySpent", senderWallet.getDailySpent()
-        );
+        TransferResponse response = new TransferResponse();
+        response.setAmountTransferred(amount);
+        response.setSenderBalance(senderWallet.getBalance());
+        response.setRecipientBalance(recipientWallet.getBalance());
+        response.setRemainingDailyLimit(walletProperties.getDailyLimit() - senderWallet.getDailySpent());
+        response.setFrozen(senderWallet.getFrozen());
+        response.setMessage("Transfer successful");
+        return response;
     }
 
-
-    // Fetch all transactions
-    public List<Transaction> getTransactions(User user) {
+    // Fetch all transactions as DTOs
+    public List<TransactionDTO> getTransactions(User user) {
         logger.info("Fetching transactions for user {}", user.getEmail());
         List<Transaction> transactions = transactionRepository.findByUser(user);
-        logger.info("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
-        return transactions;
+        List<TransactionDTO> dtos = transactions.stream()
+                .map(t -> {
+                    TransactionDTO dto = new TransactionDTO();
+                    dto.setId(t.getId());
+                    dto.setAmount(t.getAmount());
+                    dto.setType(t.getType());
+                    dto.setTimestamp(t.getTimestamp());
+                    dto.setUserEmail(t.getUser().getEmail()); // optional
+                    return dto;
+                })
+                .collect(Collectors.toList());
+        logger.info("Fetched {} transactions for user {}", dtos.size(), user.getEmail());
+        return dtos;
     }
 }
