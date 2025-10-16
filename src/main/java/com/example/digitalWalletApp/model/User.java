@@ -17,8 +17,10 @@ public class User {
 
     // Default constructor
     public User() {}
+    // Default constructor — required by JPA to create objects automatically.
 
     // Constructor without password
+    // constructor overloading can be observed here
     public User(String name, String email) {
         this.name = name;
         this.email = email;
@@ -31,6 +33,7 @@ public class User {
         this.password = password;
     }
 
+    // this means this particular column named role can not have null values.
     @Column(nullable = false)
     private String role = "USER"; // Default is normal user
 

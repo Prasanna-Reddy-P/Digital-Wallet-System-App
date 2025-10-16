@@ -15,7 +15,7 @@ public class Wallet {
 
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false)
-    private User user; // ✅ FOREIGN KEY (references user.id)
+    private User user; // ✅ FOREIGN KEY (references user.id), @JoinColumn(name = "user_id"): Creates a column in wallet table called user_id → foreign key to user.id.
 
     // --- Daily limit tracking ---
     private Double dailySpent = 0.0;  // How much user has spent today

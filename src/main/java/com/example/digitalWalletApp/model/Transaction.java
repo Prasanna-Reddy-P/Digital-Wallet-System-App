@@ -17,7 +17,7 @@ public class Transaction {
 
     private LocalDateTime timestamp;
 
-    @ManyToOne
+    @ManyToOne // multiple transactions can happen per user (N : 1)
     @JoinColumn(name = "user_id", nullable = false)
     private User user; // ✅ FOREIGN KEY (references user.id)
 
@@ -32,7 +32,7 @@ public class Transaction {
     }
 
     // --- Lifecycle callback ---
-    @PrePersist
+    @PrePersist // @PrePersist: Called before saving this entity to the DB.
     protected void onCreate() {
         if (timestamp == null) {
             timestamp = LocalDateTime.now();

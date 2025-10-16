@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS transactionDetails (
     INDEX idx_transaction_user (user_id),
     INDEX idx_transaction_timestamp (timestamp)
     );
-TODO WHICH INDEX PERFORMS BETTER IN NON-PK, NON UNIQUE COLUMNS.
+TODO WHICH DATATYPE INDEXES PERFORMS BETTER IN NON-PK, NON UNIQUE COLUMNS.
 
 /*
 Creates an index on user_id.
@@ -236,7 +236,6 @@ All changes (wallet deduction + transaction record) are now permanently saved to
 ACID aspect: Durability — once committed, even if the database crashes, these changes persist.
 */
 
-    TODO, CHECK THE -VE CONDITION FOR ACID
 
 
 -- ===========================================
