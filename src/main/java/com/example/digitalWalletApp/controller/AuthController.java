@@ -29,24 +29,20 @@ public class AuthController {
     private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
 
+    // ------------------- USER SIGNUP -------------------
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@RequestBody User user) {
         if (userRepository.findByEmail(user.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("Email already exists!");
         }
 
-
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-
-        // ✅ Set default role here
         user.setRole("USER");  // Default normal user
 
         User savedUser = userRepository.save(user);
 
-
         Wallet wallet = new Wallet(savedUser);
         walletRepository.save(wallet);
-
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "User registered successfully!");
@@ -57,7 +53,38 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    // ------------------- ADMIN SIGNUP -------------------
+    @PostMapping("/signup-admin")
+    public ResponseEntity<?> signupAdmin(@RequestBody User user,
+                                         @RequestHeader("X-ADMIN-SECRET") String adminSecret) {
+        // ✅ Secret key to protect admin signup
+        final String SECRET_KEY = "SuperSecretAdminKey123"; // Use env variable in production
+        if (!SECRET_KEY.equals(adminSecret)) {
+            return ResponseEntity.status(403).body("Forbidden: Invalid admin secret");
+        }
 
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+            return ResponseEntity.badRequest().body("Email already exists!");
+        }
+
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        user.setRole("ADMIN"); // Set admin role
+
+        User savedUser = userRepository.save(user);
+
+        Wallet wallet = new Wallet(savedUser);
+        walletRepository.save(wallet);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Admin registered successfully!");
+        response.put("name", savedUser.getName());
+        response.put("email", savedUser.getEmail());
+        response.put("balance", wallet.getBalance());
+
+        return ResponseEntity.ok(response);
+    }
+
+    // ------------------- LOGIN -------------------
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> credentials) {
         User user = userRepository.findByEmail(credentials.get("email")).orElse(null);
@@ -68,9 +95,7 @@ public class AuthController {
 
         Wallet wallet = walletRepository.findByUser(user).orElse(new Wallet(user));
 
-
         String token = jwtUtil.generateToken(user.getEmail());
-
 
         Map<String, Object> response = new HashMap<>();
         response.put("message", "Login successful!");

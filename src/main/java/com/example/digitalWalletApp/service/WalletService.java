@@ -180,6 +180,17 @@ public class WalletService {
         return response;
     }
 
+    // Get all users
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    // Get user by ID
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId).orElse(null);
+    }
+
+
     public List<TransactionDTO> getTransactions(User user) {
         logger.info("Fetching transactions for user {}", user.getEmail());
         List<Transaction> transactions = transactionRepository.findByUser(user);
