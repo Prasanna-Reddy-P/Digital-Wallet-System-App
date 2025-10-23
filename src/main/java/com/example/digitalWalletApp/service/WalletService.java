@@ -205,6 +205,7 @@ public class WalletService {
         LoadMoneyResponse response = walletMapper.toLoadMoneyResponse(wallet);
         response.setRemainingDailyLimit(walletProperties.getDailyLimit() - wallet.getDailySpent());
         response.setFrozen(wallet.getFrozen());
+        response.setMessage("Balance fetched successfully 🥳");
         return response;
     }
 

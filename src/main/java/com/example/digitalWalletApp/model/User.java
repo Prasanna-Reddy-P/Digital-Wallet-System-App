@@ -15,6 +15,8 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    private Integer age;  // <-- Add this field
+
     // Default constructor
     public User() {}
     // Default constructor — required by JPA to create objects automatically.
@@ -72,4 +74,8 @@ public class User {
     public void setPassword(String password) {
         this.password = password;
     }
+
+    public Integer getAge() { return age; }// getter
+
+    public void setAge(Integer age) { this.age = age; }  // setter
 }
