@@ -90,7 +90,7 @@ public class AuthController {
         User user = userRepository.findByEmail(credentials.get("email")).orElse(null);
 
         if (user == null || !passwordEncoder.matches(credentials.get("password"), user.getPassword())) {
-            return ResponseEntity.status(401).body("Invalid credentials");
+            return ResponseEntity.status(200).body("Invalid credentials");
         }
 
         Wallet wallet = walletRepository.findByUser(user).orElse(new Wallet(user));
