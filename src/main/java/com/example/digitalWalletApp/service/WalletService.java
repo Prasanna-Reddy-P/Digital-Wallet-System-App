@@ -4,6 +4,7 @@ import com.example.digitalWalletApp.config.WalletProperties;
 import com.example.digitalWalletApp.dto.LoadMoneyResponse;
 import com.example.digitalWalletApp.dto.TransactionDTO;
 import com.example.digitalWalletApp.dto.TransferResponse;
+import com.example.digitalWalletApp.exception.UserNotFoundException;
 import com.example.digitalWalletApp.mapper.TransactionMapper;
 import com.example.digitalWalletApp.mapper.WalletMapper;
 import com.example.digitalWalletApp.model.Transaction;
@@ -19,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -70,8 +70,10 @@ public class WalletService {
             throw new IllegalArgumentException("Amount must be greater than 0");
         }
         if (amount < walletProperties.getMinAmount() || amount > walletProperties.getMaxAmount()) {
-            logger.warn("{} amount {} is outside allowed range {}-{}", operation, amount, walletProperties.getMinAmount(), walletProperties.getMaxAmount());
-            throw new IllegalArgumentException(operation + " amount must be between " + walletProperties.getMinAmount() + " and " + walletProperties.getMaxAmount());
+            logger.warn("{} amount {} is outside allowed range {}-{}", operation, amount,
+                    walletProperties.getMinAmount(), walletProperties.getMaxAmount());
+            throw new IllegalArgumentException(operation + " amount must be between "
+                    + walletProperties.getMinAmount() + " and " + walletProperties.getMaxAmount());
         }
         logger.debug("{} amount {} validated successfully", operation, amount);
     }
@@ -86,6 +88,7 @@ public class WalletService {
         }
     }
 
+    // ---------------- Load Money ----------------
     @Transactional
     public LoadMoneyResponse loadMoney(User user, double amount) {
         logger.info("Initiating wallet load for user {}: amount={}", user.getEmail(), amount);
@@ -116,10 +119,12 @@ public class WalletService {
 
         LoadMoneyResponse response = walletMapper.toLoadMoneyResponse(wallet);
         response.setRemainingDailyLimit(walletProperties.getDailyLimit() - wallet.getDailySpent());
+        response.setFrozen(wallet.getFrozen());
         response.setMessage("Wallet loaded successfully");
         return response;
     }
 
+    // ---------------- Transfer Money ----------------
     @Transactional
     public TransferResponse transferAmount(User sender, Long recipientId, double amount) {
         logger.info("Initiating transfer from {} to recipientId {} amount {}", sender.getEmail(), recipientId, amount);
@@ -145,10 +150,8 @@ public class WalletService {
             throw new IllegalArgumentException("Insufficient balance");
         }
 
-        User recipient = userRepository.findById(recipientId).orElseThrow(() -> {
-            logger.error("Recipient with ID {} not found", recipientId);
-            return new IllegalArgumentException("Recipient not found");
-        });
+        User recipient = userRepository.findById(recipientId)
+                .orElseThrow(() -> new UserNotFoundException("Recipient not found with ID " + recipientId));
 
         Wallet recipientWallet = getWallet(recipient);
         resetDailyIfNewDay(recipientWallet);
@@ -169,23 +172,23 @@ public class WalletService {
         transactionRepository.save(new Transaction(sender, amount, "DEBIT"));
         transactionRepository.save(new Transaction(recipient, amount, "CREDIT"));
 
-        logger.info("Transfer successful: sender {} newBalance={}, recipient {} newBalance={}", sender.getEmail(), senderWallet.getBalance(), recipient.getEmail(), recipientWallet.getBalance());
+        logger.info("Transfer successful: sender {} newBalance={}, recipient {} newBalance={}",
+                sender.getEmail(), senderWallet.getBalance(), recipient.getEmail(), recipientWallet.getBalance());
 
         TransferResponse response = walletMapper.toTransferResponse(senderWallet);
         response.setAmountTransferred(amount);
-        //response.setRecipientBalance(recipientWallet.getBalance());
         response.setRemainingDailyLimit(walletProperties.getDailyLimit() - senderWallet.getDailySpent());
+        response.setFrozen(senderWallet.getFrozen());
         response.setMessage("Transfer successful");
 
         return response;
     }
 
-    // ------------------- Get all users -------------------
+    // ---------------- Helper Methods ----------------
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
-    // ------------------- Get user by ID -------------------
     public User getUserById(Long userId) {
         return userRepository.findById(userId).orElse(null);
     }
@@ -196,6 +199,13 @@ public class WalletService {
         List<TransactionDTO> dtos = transactions.stream().map(transactionMapper::toDTO).collect(Collectors.toList());
         logger.info("Fetched {} transactions for user {}", dtos.size(), user.getEmail());
         return dtos;
+    }
+
+    public LoadMoneyResponse toLoadMoneyResponse(Wallet wallet) {
+        LoadMoneyResponse response = walletMapper.toLoadMoneyResponse(wallet);
+        response.setRemainingDailyLimit(walletProperties.getDailyLimit() - wallet.getDailySpent());
+        response.setFrozen(wallet.getFrozen());
+        return response;
     }
 
     public WalletProperties getWalletProperties() {
