@@ -1,6 +1,11 @@
 package com.example.digitalWalletApp.model;
 
 import jakarta.persistence.*;
+import org.antlr.v4.runtime.misc.NotNull;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+
+
 
 @Entity
 @Table(name = "`user`")
@@ -15,6 +20,8 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Min(value = 18, message = "User must be at least 18 years old")
+    @Max(value = 100, message = "Age cannot be greater than 100")
     private Integer age;  // <-- Add this field
 
     // Default constructor

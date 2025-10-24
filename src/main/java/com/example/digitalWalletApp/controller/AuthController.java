@@ -5,6 +5,7 @@ import com.example.digitalWalletApp.model.User;
 import com.example.digitalWalletApp.model.Wallet;
 import com.example.digitalWalletApp.repository.UserRepository;
 import com.example.digitalWalletApp.repository.WalletRepository;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,7 +37,7 @@ public class AuthController {
 
     // ------------------- USER SIGNUP -------------------
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody User user) {
+    public ResponseEntity<?> signup(@Valid @RequestBody User user) {
 
         if (user.getAge() < 18) {
             //logger.warn("User {} is underage: {}", user.getEmail(), user.getAge());
