@@ -46,12 +46,17 @@ public class WalletController {
 
     @GetMapping("/transactions")
     public ResponseEntity<List<?>> getTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
+        // Return type List<?> — in practice this is List<TransactionDTO>
         logger.info("Fetching transactions request");
 
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
         List<?> transactions = walletService.getTransactions(user);
+        /*
+        Calls walletService.getTransactions(user) which returns a list of DTOs (via TransactionMapper)
+        and returns HTTP 200 OK with the list.
+         */
         logger.info("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
 
         return ResponseEntity.ok(transactions);
@@ -60,6 +65,10 @@ public class WalletController {
     @PostMapping("/load")
     public ResponseEntity<LoadMoneyResponse> loadMoney(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
                                                        @RequestBody TransferRequest request) {
+        /*
+        @RequestBody TransferRequest request → deserializes JSON request body into TransferRequest DTO
+        (which contains amount and receiverId fields — here only amount is used for load).
+         */
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
@@ -85,3 +94,32 @@ public class WalletController {
         return ResponseEntity.ok(response);
     }
 }
+
+/*
+
+2️⃣ ResponseEntity<LoadMoneyResponse>
+
+This defines the type of HTTP response the method will return
+
+ResponseEntity is a powerful class from Spring that allows you to:
+Send HTTP status codes (like 200 OK, 404 Not Found, etc.)
+Send headers (extra info like tokens, cache-control, etc.)
+Send body (the actual data being returned — here it’s a LoadMoneyResponse object)
+
+
+4️⃣ @RequestHeader(HttpHeaders.AUTHORIZATION)
+
+This tells Spring:
+“Take the Authorization header from the incoming HTTP request and inject its value into the authHeader variable.”
+
+GET /api/wallet/balance
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Here,
+HttpHeaders.AUTHORIZATION is a constant from Spring ("Authorization") — used for clarity instead of typing the string manually.
+
+The value after Bearer is your JWT token.
+
+So effectively,
+👉 authHeader = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+ */

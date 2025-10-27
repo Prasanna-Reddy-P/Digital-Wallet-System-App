@@ -82,6 +82,11 @@ public class Wallet {
     }
 
     // --- Helper method to reset dailySpent if a new day starts ---
+    /*
+    Runs when user tries a new transaction.
+    Resets dailySpent automatically if the day has changed.
+    Keeps wallet consistent with time.
+     */
     public void resetDailyIfNewDay() {
         LocalDate today = LocalDate.now();
         if (lastTransactionDate == null || !lastTransactionDate.equals(today)) {

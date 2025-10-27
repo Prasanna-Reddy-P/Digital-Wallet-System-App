@@ -13,6 +13,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+/*
+Combines @ControllerAdvice + @ResponseBody.
+Intercepts exceptions thrown by any controller and returns a custom JSON response instead of a stack trace.
+
+✅ Effect: Any exception thrown in controllers can be caught here and returned as JSON instead of a default HTML error page.
+ */
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);

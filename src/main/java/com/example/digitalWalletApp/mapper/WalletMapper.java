@@ -18,3 +18,20 @@ public interface WalletMapper {
     @Mapping(target = "frozen", source = "wallet.frozen")
     TransferResponse toTransferResponse(Wallet wallet);
 }
+
+/*
+
+What MapStruct generates internally:
+
+@Override
+public LoadMoneyResponse toLoadMoneyResponse(Wallet wallet) {
+    if (wallet == null) return null;
+
+    LoadMoneyResponse dto = new LoadMoneyResponse();
+    dto.setBalance(wallet.getBalance());
+    dto.setDailySpent(wallet.getDailySpent());
+    dto.setFrozen(wallet.getFrozen());
+    return dto;
+}
+
+ */

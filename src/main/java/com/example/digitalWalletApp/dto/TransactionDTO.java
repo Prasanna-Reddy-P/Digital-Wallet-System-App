@@ -8,7 +8,7 @@ public class TransactionDTO {
     private String type;
     private LocalDateTime timestamp;
 
-    private String userEmail; // optional
+    private String userEmail;
 
     // Getters & Setters
     public Long getId() { return id; }

@@ -29,7 +29,7 @@ public class User {
     // Default constructor — required by JPA to create objects automatically.
 
     // Constructor without password
-    // constructor overloading can be observed here
+    // constructor overloading can be observed here, for flexibility purpose
     public User(String name, String email) {
         this.name = name;
         this.email = email;
@@ -56,7 +56,7 @@ public class User {
         return id;
     }
 
-    public void setId(Long id) {}
+    public void setId(Long id) { this.id = id; }
 
     public String getName() {
         return name;

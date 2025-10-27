@@ -9,7 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder; // password hashing utility.
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.HashMap;
 
 
-@RestController
+@RestController // @ResponseBody + @Controller, marks the class as a controller where every handler method returns the response body.
 @RequestMapping("/api/auth")
 public class AuthController {
 
@@ -38,6 +38,12 @@ public class AuthController {
     // ------------------- USER SIGNUP -------------------
     @PostMapping("/signup")
     public ResponseEntity<?> signup(@Valid @RequestBody User user) {
+        /*
+        @Valid — triggers bean validation on the User object (e.g., @Min, @Max on age).
+        If validation fails, Spring will raise a MethodArgumentNotValidException.
+
+        @RequestBody User - user — deserialize JSON request body into a User instance.
+         */
 
         if (user.getAge() < 18) {
             //logger.warn("User {} is underage: {}", user.getEmail(), user.getAge());
@@ -50,6 +56,11 @@ public class AuthController {
         }
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+        /*
+        When a user registers or changes their password,
+        the plain-text password needs to be hashed before being stored in a database.
+        The encode() method of BCryptPasswordEncoder performs this hashing.
+         */
         user.setRole("USER");
 
         User savedUser = userRepository.save(user);
@@ -74,6 +85,7 @@ public class AuthController {
     @PostMapping("/signup-admin")
     public ResponseEntity<?> signupAdmin(@RequestBody User user,
                                          @RequestHeader("X-ADMIN-SECRET") String adminSecret) {
+        // @RequestHeader("X-ADMIN-SECRET") String adminSecret — reads a custom header X-ADMIN-SECRET used to protect admin creation.
         // ✅ Secret key to protect admin signup
         final String SECRET_KEY = "SuperSecretAdminKey123"; // Use env variable in production
         if (!SECRET_KEY.equals(adminSecret)) {

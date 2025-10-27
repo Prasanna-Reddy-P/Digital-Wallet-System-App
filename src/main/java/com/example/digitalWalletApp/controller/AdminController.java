@@ -119,3 +119,8 @@ public class AdminController {
         return ResponseEntity.ok(wallet.getBalance());
     }
 }
+
+/*
+The annotation @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader in a Spring-based application (or similar web framework)
+indicates that the authHeader parameter of a method should be populated with the value of the Authorization header from the incoming HTTP request.
+ */

@@ -1,6 +1,7 @@
 package com.example.digitalWalletApp.controller;
 
 import com.example.digitalWalletApp.dto.UserInfoResponse;
+import com.example.digitalWalletApp.mapper.UserMapper;
 import com.example.digitalWalletApp.model.User;
 import com.example.digitalWalletApp.model.Wallet;
 import com.example.digitalWalletApp.service.UserService;
@@ -25,6 +26,10 @@ public class UserController {
     @Autowired
     private WalletService walletService;
 
+    @Autowired
+    private UserMapper userMapper;
+
+
     @GetMapping("/me")
     public ResponseEntity<UserInfoResponse> getMyInfo(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
         logger.info("Fetching user info");
@@ -35,6 +40,8 @@ public class UserController {
         Wallet wallet = walletService.getWallet(user);
         logger.info("User info fetched for email: {}, balance: {}", user.getEmail(), wallet.getBalance());
 
-        return ResponseEntity.ok(new UserInfoResponse(user.getName(), user.getEmail(), wallet.getBalance()));
+        UserInfoResponse dto = userMapper.toDTO(user, wallet.getBalance());
+        return ResponseEntity.ok(dto);
+
     }
 }

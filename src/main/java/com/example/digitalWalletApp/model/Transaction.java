@@ -3,7 +3,7 @@ package com.example.digitalWalletApp.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-@Entity
+@Entity  // Tells JPA this class maps to a database table.
 @Table(name = "`transactions`")// good practice to use plural table name
 public class Transaction {
 
