@@ -16,6 +16,10 @@ import com.example.digitalWalletApp.repository.WalletRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -301,11 +305,13 @@ public class WalletService {
         return userRepository.findById(userId).orElse(null);
     }
 
-    public List<TransactionDTO> getTransactions(User user) {
-        return transactionRepository.findByUser(user).stream()
-                .map(transactionMapper::toDTO)
-                .collect(Collectors.toList());
+    public Page<TransactionDTO> getTransactions(User user, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Transaction> transactionPage = transactionRepository.findByUser(user, pageable);
+
+        return transactionPage.map(transactionMapper::toDTO);
     }
+
 
     public LoadMoneyResponse toLoadMoneyResponse(Wallet wallet) {
         LoadMoneyResponse response = walletMapper.toLoadMoneyResponse(wallet);

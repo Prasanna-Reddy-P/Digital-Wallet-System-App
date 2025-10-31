@@ -9,6 +9,7 @@ import com.example.digitalWalletApp.service.WalletService;
 import com.example.digitalWalletApp.exception.UnauthorizedException;
 import com.example.digitalWalletApp.exception.ForbiddenException;
 import com.example.digitalWalletApp.exception.UserNotFoundException;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -66,9 +67,13 @@ public class AdminController {
     }
 
     @GetMapping("/users/{userId}/transactions")
-    public ResponseEntity<List<TransactionDTO>> getUserTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
-                                                                    @PathVariable Long userId) {
-        logger.info("Received request: GET /users/{}/transactions", userId);
+    public ResponseEntity<Page<TransactionDTO>> getUserTransactions(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        logger.info("Received request: GET /users/{}/transactions?page={}&size={}", userId, page, size);
 
         User admin = userService.getUserFromToken(authHeader);
         if (admin == null) throw new UnauthorizedException("Unauthorized access");
@@ -77,11 +82,13 @@ public class AdminController {
         User user = walletService.getUserById(userId);
         if (user == null) throw new UserNotFoundException("User not found with ID " + userId);
 
-        List<TransactionDTO> transactions = walletService.getTransactions(user);
-        logger.info("Fetched {} transactions for user {}", transactions.size(), userId);
+        Page<TransactionDTO> transactions = walletService.getTransactions(user, page, size);
+
+        logger.info("Fetched {} transactions for user {}", transactions.getNumberOfElements(), userId);
 
         return ResponseEntity.ok(transactions);
     }
+
 
     @GetMapping("/users/{userId}/wallet")
     public ResponseEntity<Wallet> getWalletByUserId(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,

@@ -1,6 +1,7 @@
 package com.example.digitalWalletApp.controller;
 
 import com.example.digitalWalletApp.dto.LoadMoneyResponse;
+import com.example.digitalWalletApp.dto.TransactionDTO;
 import com.example.digitalWalletApp.dto.TransferRequest;
 import com.example.digitalWalletApp.dto.TransferResponse;
 import com.example.digitalWalletApp.model.User;
@@ -11,6 +12,7 @@ import com.example.digitalWalletApp.exception.UnauthorizedException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -53,17 +55,22 @@ public class WalletController {
     // Get All Transactions
     // --------------------------------------------------------------------
     @GetMapping("/transactions")
-    public ResponseEntity<List<?>> getTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        logger.info("Fetching transactions request");
+    public ResponseEntity<Page<TransactionDTO>> getTransactions(
+            @RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        logger.info("Fetching transactions request with page={} and size={}", page, size);
 
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
-        List<?> transactions = walletService.getTransactions(user);
-        logger.info("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
+        Page<TransactionDTO> transactions = walletService.getTransactions(user, page, size);
+        logger.info("Fetched {} transactions (page {}) for user {}", transactions.getNumberOfElements(), page, user.getEmail());
 
         return ResponseEntity.ok(transactions);
     }
+
 
     // --------------------------------------------------------------------
     // Load Money (with unique transactionId)
