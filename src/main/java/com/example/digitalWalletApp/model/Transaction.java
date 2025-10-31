@@ -2,6 +2,7 @@ package com.example.digitalWalletApp.model;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity  // Tells JPA this class maps to a database table.
 @Table(name = "`transactions`")// good practice to use plural table name
@@ -20,6 +21,9 @@ public class Transaction {
     @ManyToOne // multiple transactions can happen per user (N : 1)
     @JoinColumn(name = "user_id", nullable = false)
     private User user; // ✅ FOREIGN KEY (references user.id)
+
+    @Column(unique = true, nullable = false)
+    private String transactionId = UUID.randomUUID().toString();
 
     // --- Constructors ---
     public Transaction() {}
@@ -74,5 +78,13 @@ public class Transaction {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public String getTransactionId() {
+        return transactionId;
+    }
+
+    public void setTransactionId(String transactionId) {
+        this.transactionId = transactionId;
     }
 }

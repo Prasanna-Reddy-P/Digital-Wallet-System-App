@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
@@ -27,4 +28,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end
     );
+
+    Optional<Transaction> findByTransactionId(String transactionId);
 }

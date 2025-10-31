@@ -15,12 +15,16 @@ public class Wallet {
 
     @OneToOne
     @JoinColumn(name = "user_id", nullable = false)
-    private User user; // ✅ FOREIGN KEY (references user.id), @JoinColumn(name = "user_id"): Creates a column in wallet table called user_id → foreign key to user.id.
+    private User user;
 
-    // --- Daily limit tracking ---
-    private Double dailySpent = 0.0;  // How much user has spent today
-    private Boolean frozen = false;    // Is wallet frozen for outgoing transactions
-    private LocalDate lastTransactionDate; // To reset dailySpent on a new day
+    private Double dailySpent = 0.0;
+    private Boolean frozen = false;
+    private LocalDate lastTransactionDate;
+
+    // ✅ Enable Hibernate Optimistic Locking
+    @Version
+    @Column(nullable = false)
+    private Long version = 0L; // initialize to avoid null
 
     public Wallet() {}
 
@@ -81,17 +85,20 @@ public class Wallet {
         this.lastTransactionDate = lastTransactionDate;
     }
 
-    // --- Helper method to reset dailySpent if a new day starts ---
-    /*
-    Runs when user tries a new transaction.
-    Resets dailySpent automatically if the day has changed.
-    Keeps wallet consistent with time.
-     */
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
+    }
+
+    // --- Helper ---
     public void resetDailyIfNewDay() {
         LocalDate today = LocalDate.now();
         if (lastTransactionDate == null || !lastTransactionDate.equals(today)) {
             this.dailySpent = 0.0;
-            this.frozen = false;  // Unfreeze at start of new day
+            this.frozen = false;
             this.lastTransactionDate = today;
         }
     }

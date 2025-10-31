@@ -8,25 +8,20 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import jakarta.persistence.OptimisticLockException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
-/*
-Combines @ControllerAdvice + @ResponseBody.
-Intercepts exceptions thrown by any controller and returns a custom JSON response instead of a stack trace.
-
-✅ Effect: Any exception thrown in controllers can be caught here and returned as JSON instead of a default HTML error page.
- */
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    // ---------------- Generic Exception ----------------
+    // ✅ Generic fallback for unhandled exceptions
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
-        logger.error("Unhandled exception: {}", ex.getMessage(), ex);
+        logger.error("❌ Unhandled exception caught: {}", ex.getMessage(), ex);
 
         Map<String, String> errors = new HashMap<>();
         errors.put("reason", ex.getMessage());
@@ -34,88 +29,85 @@ public class GlobalExceptionHandler {
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Validation failed",
+                "Unexpected server error",
                 errors
         );
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
-    // ---------------- IllegalArgumentException ----------------
+    // ✅ IllegalArgumentException
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
-        logger.warn("Business exception: {}", ex.getMessage());
+        logger.warn("⚠️ Invalid argument: {}", ex.getMessage());
 
-        Map<String, String> errors = new HashMap<>();
-        errors.put("reason", ex.getMessage());
-
+        Map<String, String> errors = Map.of("reason", ex.getMessage());
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.BAD_REQUEST.value(),
-                "Validation failed",
+                "Invalid request data",
                 errors
         );
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
-    // ---------------- UserNotFoundException ----------------
+    // ✅ UserNotFoundException
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex) {
-        logger.warn("User not found: {}", ex.getMessage());
+        logger.warn("⚠️ User not found: {}", ex.getMessage());
 
-        Map<String, String> errors = new HashMap<>();
-        errors.put("reason", ex.getMessage());
-
+        Map<String, String> errors = Map.of("reason", ex.getMessage());
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.NOT_FOUND.value(),
-                "Validation failed",
+                "User not found",
                 errors
         );
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
-    // ---------------- UnauthorizedException ----------------
+    // ✅ UnauthorizedException
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex) {
-        logger.warn("Unauthorized: {}", ex.getMessage());
+        logger.warn("🚫 Unauthorized: {}", ex.getMessage());
 
-        Map<String, String> errors = new HashMap<>();
-        errors.put("reason", ex.getMessage());
-
+        Map<String, String> errors = Map.of("reason", ex.getMessage());
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.UNAUTHORIZED.value(),
-                "Validation failed",
+                "Unauthorized access",
                 errors
         );
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
-    // ---------------- ForbiddenException ----------------
+    // ✅ ForbiddenException
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex) {
-        logger.warn("Forbidden: {}", ex.getMessage());
+        logger.warn("🚫 Forbidden action: {}", ex.getMessage());
 
-        Map<String, String> errors = new HashMap<>();
-        errors.put("reason", ex.getMessage());
-
+        Map<String, String> errors = Map.of("reason", ex.getMessage());
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.FORBIDDEN.value(),
-                "Validation failed",
+                "Access denied",
                 errors
         );
-        return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
-    // ---------------- MethodArgumentNotValidException ----------------
+    // ✅ Validation exception (Bad Request)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors()
                 .forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
 
-        logger.warn("Validation errors: {}", errors);
+        logger.warn("⚠️ Validation errors: {}", errors);
 
         ErrorResponse response = new ErrorResponse(
                 LocalDateTime.now(),
@@ -123,6 +115,26 @@ public class GlobalExceptionHandler {
                 "Validation failed",
                 errors
         );
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    // ✅ Optimistic Locking exception (Concurrency conflict)
+    @ExceptionHandler(OptimisticLockException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(OptimisticLockException ex) {
+        logger.warn("⚠️ Optimistic lock conflict: {}", ex.getMessage());
+
+        Map<String, String> errors = Map.of(
+                "reason", "The wallet was updated by another transaction. Please retry your request."
+        );
+
+        ErrorResponse response = new ErrorResponse(
+                LocalDateTime.now(),
+                HttpStatus.CONFLICT.value(),
+                "Concurrent modification detected",
+                errors
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 }

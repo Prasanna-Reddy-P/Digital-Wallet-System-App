@@ -8,6 +8,7 @@ import com.example.digitalWalletApp.model.Wallet;
 import com.example.digitalWalletApp.service.UserService;
 import com.example.digitalWalletApp.service.WalletService;
 import com.example.digitalWalletApp.exception.UnauthorizedException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/wallet")
@@ -30,6 +32,9 @@ public class WalletController {
         this.walletService = walletService;
     }
 
+    // --------------------------------------------------------------------
+    // Get Wallet Balance
+    // --------------------------------------------------------------------
     @GetMapping("/balance")
     public ResponseEntity<LoadMoneyResponse> getBalance(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
         logger.info("Fetching wallet balance request");
@@ -44,82 +49,66 @@ public class WalletController {
         return ResponseEntity.ok(response);
     }
 
+    // --------------------------------------------------------------------
+    // Get All Transactions
+    // --------------------------------------------------------------------
     @GetMapping("/transactions")
     public ResponseEntity<List<?>> getTransactions(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
-        // Return type List<?> — in practice this is List<TransactionDTO>
         logger.info("Fetching transactions request");
 
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
         List<?> transactions = walletService.getTransactions(user);
-        /*
-        Calls walletService.getTransactions(user) which returns a list of DTOs (via TransactionMapper)
-        and returns HTTP 200 OK with the list.
-         */
         logger.info("Fetched {} transactions for user {}", transactions.size(), user.getEmail());
 
         return ResponseEntity.ok(transactions);
     }
 
+    // --------------------------------------------------------------------
+    // Load Money (with unique transactionId)
+    // --------------------------------------------------------------------
     @PostMapping("/load")
     public ResponseEntity<LoadMoneyResponse> loadMoney(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
                                                        @RequestBody TransferRequest request) {
-        /*
-        @RequestBody TransferRequest request → deserializes JSON request body into TransferRequest DTO
-        (which contains amount and receiverId fields — here only amount is used for load).
-         */
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
-        logger.info("Wallet load request: user={}, amount={}", user.getEmail(), request.getAmount());
+        String transactionId = UUID.randomUUID().toString(); // ✅ unique txn ID
+        logger.info("Wallet load request: user={}, amount={}, transactionId={}",
+                user.getEmail(), request.getAmount(), transactionId);
 
-        LoadMoneyResponse response = walletService.loadMoney(user, request.getAmount());
-        logger.info("Wallet load successful: user={}, newBalance={}", user.getEmail(), response.getBalance());
+        LoadMoneyResponse response = walletService.loadMoney(user, request.getAmount(), transactionId);
+
+        logger.info("Wallet load successful: user={}, transactionId={}, newBalance={}",
+                user.getEmail(), transactionId, response.getBalance());
 
         return ResponseEntity.ok(response);
     }
 
+    // --------------------------------------------------------------------
+    // Transfer Money (with unique transactionId)
+    // --------------------------------------------------------------------
     @PostMapping("/transfer")
     public ResponseEntity<TransferResponse> transfer(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader,
                                                      @RequestBody TransferRequest request) {
         User sender = userService.getUserFromToken(authHeader);
         if (sender == null) throw new UnauthorizedException("Unauthorized access");
 
-        logger.info("Transfer request: sender={}, receiverId={}, amount={}", sender.getEmail(), request.getReceiverId(), request.getAmount());
+        String transactionId = UUID.randomUUID().toString(); // ✅ unique txn ID
+        logger.info("Transfer request: sender={}, receiverId={}, amount={}, transactionId={}",
+                sender.getEmail(), request.getReceiverId(), request.getAmount(), transactionId);
 
-        TransferResponse response = walletService.transferAmount(sender, request.getReceiverId(), request.getAmount());
-        logger.info("Transfer successful: sender={}, receiverId={}, amount={}", sender.getEmail(), request.getReceiverId(), request.getAmount());
+        TransferResponse response = walletService.transferAmount(
+                sender,
+                request.getReceiverId(),
+                request.getAmount(),
+                transactionId
+        );
+
+        logger.info("Transfer successful: sender={}, receiverId={}, amount={}, transactionId={}",
+                sender.getEmail(), request.getReceiverId(), request.getAmount(), transactionId);
 
         return ResponseEntity.ok(response);
     }
 }
-
-/*
-
-2️⃣ ResponseEntity<LoadMoneyResponse>
-
-This defines the type of HTTP response the method will return
-
-ResponseEntity is a powerful class from Spring that allows you to:
-Send HTTP status codes (like 200 OK, 404 Not Found, etc.)
-Send headers (extra info like tokens, cache-control, etc.)
-Send body (the actual data being returned — here it’s a LoadMoneyResponse object)
-
-
-4️⃣ @RequestHeader(HttpHeaders.AUTHORIZATION)
-
-This tells Spring:
-“Take the Authorization header from the incoming HTTP request and inject its value into the authHeader variable.”
-
-GET /api/wallet/balance
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-Here,
-HttpHeaders.AUTHORIZATION is a constant from Spring ("Authorization") — used for clarity instead of typing the string manually.
-
-The value after Bearer is your JWT token.
-
-So effectively,
-👉 authHeader = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- */

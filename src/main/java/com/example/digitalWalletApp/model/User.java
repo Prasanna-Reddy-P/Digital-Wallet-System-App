@@ -46,6 +46,9 @@ public class User {
     @Column(nullable = false)
     private String role = "USER"; // Default is normal user
 
+    public User(long l, String john, String mail, String password123) {
+    }
+
     // Getter & Setter
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }

@@ -9,7 +9,7 @@ public class LoadMoneyResponse {
 
     // Getters & Setters
     public Double getBalance() { return balance; }
-    public void setBalance(Double balance) { this.balance = balance; }
+    public void setBalance(Double balance) { this.balance   = balance; }
 
     public Double getDailySpent() { return dailySpent; }
     public void setDailySpent(Double dailySpent) { this.dailySpent = dailySpent; }
