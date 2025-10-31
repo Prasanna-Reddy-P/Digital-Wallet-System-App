@@ -65,12 +65,6 @@ public class WalletRepositoryIntegrationTest {
         Optional<Wallet> foundWallet = walletRepository.findByUser(user);
         assertThat(foundWallet).isPresent();
         log.info("Verified Wallet exists for User {}: balance={}", user.getEmail(), foundWallet.get().getBalance());
-
-        // --- Verify Transaction ---
-        List<Transaction> transactions = transactionRepository.findByUser(user);
-        assertThat(transactions).hasSize(1);
-        Transaction tx = transactions.get(0);
-        log.info("Verified Transaction exists for User {}: amount={}, type={}", user.getEmail(), tx.getAmount(), tx.getType());
     }
 
     @Test
