@@ -18,6 +18,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 
+import com.example.digitalWalletApp.service.wallet.WalletFactory;
+
+
 @RestController
 @RequestMapping("/api/wallet/admin")
 public class AdminController {
@@ -26,11 +29,14 @@ public class AdminController {
 
     private final UserService userService;
     private final WalletService walletService;
+    private final WalletFactory walletFactory;
 
-    public AdminController(UserService userService, WalletService walletService) {
+    public AdminController(UserService userService, WalletService walletService, WalletFactory walletFactory) {
         this.userService = userService;
         this.walletService = walletService;
+        this.walletFactory = walletFactory;
     }
+
 
     @GetMapping("/users")
     public ResponseEntity<List<User>> getAllUsers(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
@@ -59,7 +65,7 @@ public class AdminController {
         User user = walletService.getUserById(userId);
         if (user == null) throw new UserNotFoundException("User not found with ID " + userId);
 
-        Wallet wallet = walletService.getWallet(user);
+        Wallet wallet = walletFactory.getOrCreateWallet(user);
         UserInfoResponse response = new UserInfoResponse(user.getName(), user.getEmail(), wallet.getBalance());
         logger.info("User {} fetched successfully", userId);
 
@@ -102,7 +108,7 @@ public class AdminController {
         User user = walletService.getUserById(userId);
         if (user == null) throw new UserNotFoundException("User not found with ID " + userId);
 
-        Wallet wallet = walletService.getWallet(user);
+        Wallet wallet = walletFactory.getOrCreateWallet(user);
         logger.info("Wallet fetched successfully for user {}", userId);
 
         return ResponseEntity.ok(wallet);
@@ -120,7 +126,7 @@ public class AdminController {
         User user = walletService.getUserById(userId);
         if (user == null) throw new UserNotFoundException("User not found with ID " + userId);
 
-        Wallet wallet = walletService.getWallet(user);
+        Wallet wallet = walletFactory.getOrCreateWallet(user);
         logger.info("Balance fetched successfully for user {}: {}", userId, wallet.getBalance());
 
         return ResponseEntity.ok(wallet.getBalance());

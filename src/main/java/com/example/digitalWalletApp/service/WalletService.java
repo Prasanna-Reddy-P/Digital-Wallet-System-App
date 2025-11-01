@@ -13,6 +13,9 @@ import com.example.digitalWalletApp.model.Wallet;
 import com.example.digitalWalletApp.repository.TransactionRepository;
 import com.example.digitalWalletApp.repository.UserRepository;
 import com.example.digitalWalletApp.repository.WalletRepository;
+import com.example.digitalWalletApp.service.wallet.WalletFactory;
+import com.example.digitalWalletApp.service.wallet.WalletTransactionService;
+import com.example.digitalWalletApp.service.wallet.WalletValidator;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,53 +45,33 @@ public class WalletService {
     private final TransactionMapper transactionMapper;
     private final WalletMapper walletMapper;
 
+    private final WalletFactory walletFactory;
+    private final WalletValidator walletValidator;
+    private final WalletTransactionService txnService;
+
     public WalletService(WalletRepository walletRepository,
                          TransactionRepository transactionRepository,
                          UserRepository userRepository,
                          WalletProperties walletProperties,
                          TransactionMapper transactionMapper,
-                         WalletMapper walletMapper) {
+                         WalletMapper walletMapper,
+                         WalletFactory walletFactory,
+                         WalletValidator walletValidator,
+                         WalletTransactionService txnService) {
         this.walletRepository = walletRepository;
         this.transactionRepository = transactionRepository;
         this.userRepository = userRepository;
         this.walletProperties = walletProperties;
         this.transactionMapper = transactionMapper;
         this.walletMapper = walletMapper;
+        this.walletFactory = walletFactory;
+        this.walletValidator = walletValidator;
+        this.txnService = txnService;
     }
 
     // --------------------------------------------------------------------
-    // GET OR CREATE WALLET
+    // Helper: sleep
     // --------------------------------------------------------------------
-    public Wallet getWallet(User user) {
-        return walletRepository.findByUser(user)
-                .orElseGet(() -> {
-                    logger.info("🪙 Creating wallet for new user {}", user.getEmail());
-                    Wallet wallet = new Wallet(user);
-                    wallet.setBalance(0.0);
-                    wallet.setDailySpent(0.0);
-                    wallet.setFrozen(false);
-                    wallet.setLastTransactionDate(LocalDate.now());
-                    return walletRepository.save(wallet);
-                });
-    }
-
-    private void validateAmount(double amount, String operation) {
-        if (amount <= 0)
-            throw new IllegalArgumentException("Amount must be greater than 0");
-        if (amount < walletProperties.getMinAmount() || amount > walletProperties.getMaxAmount())
-            throw new IllegalArgumentException(operation + " amount must be between "
-                    + walletProperties.getMinAmount() + " and " + walletProperties.getMaxAmount());
-    }
-
-    private void resetDailyIfNewDay(Wallet wallet) {
-        LocalDate today = LocalDate.now();
-        if (wallet.getLastTransactionDate() == null || !wallet.getLastTransactionDate().equals(today)) {
-            wallet.setDailySpent(0.0);
-            wallet.setFrozen(false);
-            wallet.setLastTransactionDate(today);
-        }
-    }
-
     private void sleep(long ms) {
         try {
             Thread.sleep(ms);
@@ -96,19 +79,16 @@ public class WalletService {
             Thread.currentThread().interrupt();
         }
     }
-    /*
-    Simulates artificial delay (used for concurrency testing).
-    Helps you observe optimistic locking in action when multiple threads update same wallet.
-    */
+
     // --------------------------------------------------------------------
-// LOAD MONEY (with retries + optimistic locking)
-// --------------------------------------------------------------------
+    // LOAD MONEY (with retries + optimistic locking) — orchestration
+    // --------------------------------------------------------------------
     public LoadMoneyResponse loadMoney(User user, double amount, String transactionId) {
         String thread = Thread.currentThread().getName();
         logger.info("🚀 [LOAD][{}] Start loadMoney | user={} | txnId={} | amount={}",
                 thread, user.getEmail(), transactionId, amount);
 
-        if (transactionRepository.findByTransactionId(transactionId).isPresent()) {
+        if (txnService.isDuplicate(transactionId)) {
             logger.warn("⚠️ [LOAD][{}] Duplicate txnId={} for user={} — already processed",
                     thread, transactionId, user.getEmail());
             throw new IllegalArgumentException("Duplicate transaction — already processed.");
@@ -124,7 +104,7 @@ public class WalletService {
                         thread);
                 if (attempt == maxRetries)
                     throw new RuntimeException("Load failed after retries", e);
-                sleep(500); // wait and retry
+                sleep(500);
             }
         }
         throw new RuntimeException("Unexpected loadMoney failure");
@@ -138,21 +118,20 @@ public class WalletService {
     public LoadMoneyResponse performLoadMoney(User user, double amount, String transactionId) {
         String thread = Thread.currentThread().getName();
 
-        validateAmount(amount, "Load");
+        // validations
+        walletValidator.validateAmount(amount, "Load");
 
-        // Fetch wallet with current version
-        Wallet wallet = getWallet(user);
-        resetDailyIfNewDay(wallet);
+        // get/create wallet and reset daily if new day
+        Wallet wallet = walletFactory.getOrCreateWallet(user);
+        wallet.resetDailyIfNewDay();
+
+        // validate daily limit (after reset)
+        walletValidator.validateDailyLimit(wallet, amount);
 
         double oldBalance = wallet.getBalance();
         long oldVersion = wallet.getVersion();
 
         logger.info("👀 [{}] Read wallet → balance={} | version={}", thread, oldBalance, oldVersion);
-
-        double remainingLimit = walletProperties.getDailyLimit() - wallet.getDailySpent();
-        if (amount > remainingLimit) {
-            throw new IllegalArgumentException("Daily limit exceeded");
-        }
 
         wallet.setBalance(wallet.getBalance() + amount);
         wallet.setDailySpent(wallet.getDailySpent() + amount);
@@ -161,24 +140,20 @@ public class WalletService {
             wallet.setFrozen(true);
         }
 
-        // Simulate delay (to allow other threads to overlap to trigger the optimistic locking)
         logger.info("⏳ [{}] Simulating delay (3s)...", thread);
         sleep(3000);
 
         try {
-            // 🔥 Critical: force Hibernate to issue an UPDATE immediately
             walletRepository.saveAndFlush(wallet);
             logger.info("💾 [{}] Update success → newBalance={} | newVersion={} ✅",
                     thread, wallet.getBalance(), wallet.getVersion());
         } catch (ObjectOptimisticLockingFailureException e) {
             logger.warn("💥 [{}] OptimisticLockException → version conflict (oldVersion={})", thread, oldVersion);
-            throw e; // bubble up to trigger retry
+            throw e;
         }
 
         // Record transaction only if wallet update succeeded
-        Transaction txn = new Transaction(user, amount, "SELF_CREDITED");
-        txn.setTransactionId(transactionId);
-        transactionRepository.save(txn);
+        txnService.recordLoadTransaction(user, amount, transactionId);
 
         LoadMoneyResponse response = walletMapper.toLoadMoneyResponse(wallet);
         response.setRemainingDailyLimit(walletProperties.getDailyLimit() - wallet.getDailySpent());
@@ -191,15 +166,15 @@ public class WalletService {
         return response;
     }
 
-
-// TRANSFER MONEY (with retries + optimistic locking)
-// --------------------------------------------------------------------
+    // --------------------------------------------------------------------
+    // TRANSFER MONEY (with retries + optimistic locking) — orchestration
+    // --------------------------------------------------------------------
     public TransferResponse transferAmount(User sender, Long recipientId, double amount, String transactionId) {
         String thread = Thread.currentThread().getName();
         logger.info("🚀 [TRANSFER][{}] Start | txnId={} | from={} → to={} | amount={}",
                 thread, transactionId, sender.getEmail(), recipientId, amount);
 
-        if (transactionRepository.findByTransactionId(transactionId).isPresent()) {
+        if (txnService.isDuplicate(transactionId)) {
             throw new IllegalArgumentException("Duplicate transaction — already processed.");
         }
 
@@ -227,20 +202,18 @@ public class WalletService {
     public TransferResponse performTransfer(User sender, Long recipientId, double amount, String transactionId) {
         String thread = Thread.currentThread().getName();
 
-        validateAmount(amount, "Transfer");
+        // validations
+        walletValidator.validateAmount(amount, "Transfer");
 
-        Wallet senderWallet = getWallet(sender);
-        resetDailyIfNewDay(senderWallet);
-
-        if (senderWallet.getFrozen())
-            throw new IllegalArgumentException("Wallet frozen. Cannot transfer.");
-        if (senderWallet.getBalance() < amount)
-            throw new IllegalArgumentException("Insufficient balance");
+        Wallet senderWallet = walletFactory.getOrCreateWallet(sender);
+        senderWallet.resetDailyIfNewDay();
+        walletValidator.validateFrozen(senderWallet);
+        walletValidator.validateBalance(senderWallet, amount);
 
         User recipient = userRepository.findById(recipientId)
                 .orElseThrow(() -> new UserNotFoundException("Recipient not found"));
-        Wallet recipientWallet = getWallet(recipient);
-        resetDailyIfNewDay(recipientWallet);
+        Wallet recipientWallet = walletFactory.getOrCreateWallet(recipient);
+        recipientWallet.resetDailyIfNewDay();
 
         double senderOld = senderWallet.getBalance();
         double receiverOld = recipientWallet.getBalance();
@@ -259,7 +232,7 @@ public class WalletService {
         logger.info("⏳ [TRANSFER][{}] Simulating delay (3s) — holding before commit...", thread);
         sleep(3000);
 
-        // ✅ Force Hibernate to immediately check optimistic lock version
+        // Force Hibernate to immediately check optimistic lock version
         walletRepository.saveAndFlush(senderWallet);
         walletRepository.saveAndFlush(recipientWallet);
 
@@ -270,14 +243,8 @@ public class WalletService {
                 senderWallet.getVersion() - 1, senderWallet.getVersion(),
                 recipientWallet.getVersion() - 1, recipientWallet.getVersion());
 
-        // --- Create transactions ---
-        Transaction debitTxn = new Transaction(sender, amount, "DEBIT");
-        debitTxn.setTransactionId(transactionId);
-        transactionRepository.save(debitTxn);
-
-        Transaction creditTxn = new Transaction(recipient, amount, "CREDIT");
-        creditTxn.setTransactionId(transactionId + "-CREDIT");
-        transactionRepository.save(creditTxn);
+        // --- Create transactions via txnService ---
+        txnService.recordTransferTransactions(sender, recipient, amount, transactionId);
 
         // --- Prepare response ---
         TransferResponse response = walletMapper.toTransferResponse(senderWallet);
@@ -291,8 +258,6 @@ public class WalletService {
 
         return response;
     }
-
-
 
     // --------------------------------------------------------------------
     // HELPER / FETCH METHODS
@@ -308,10 +273,8 @@ public class WalletService {
     public Page<TransactionDTO> getTransactions(User user, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Transaction> transactionPage = transactionRepository.findByUser(user, pageable);
-
         return transactionPage.map(transactionMapper::toDTO);
     }
-
 
     public LoadMoneyResponse toLoadMoneyResponse(Wallet wallet) {
         LoadMoneyResponse response = walletMapper.toLoadMoneyResponse(wallet);
@@ -325,14 +288,3 @@ public class WalletService {
         return walletProperties;
     }
 }
-
-/*
-| Time | Request 1                 | Request 2                     |
-| ---- | ------------------------- | ----------------------------- |
-| T0   | enters controller         | still waiting in Tomcat queue |
-| T1   | reads wallet (v=5)        | —                             |
-| T2   | sleeps (3s)               | starts now                    |
-| T3   | updates (new version v=6) | reads wallet (already v=6!)   |
-| T4   | Request 1 commits         | Request 2 updates cleanly     |
-
- */

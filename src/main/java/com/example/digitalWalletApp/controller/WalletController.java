@@ -10,6 +10,7 @@ import com.example.digitalWalletApp.service.UserService;
 import com.example.digitalWalletApp.service.WalletService;
 import com.example.digitalWalletApp.exception.UnauthorizedException;
 
+import com.example.digitalWalletApp.service.wallet.WalletFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -28,11 +29,14 @@ public class WalletController {
 
     private final UserService userService;
     private final WalletService walletService;
+    private final WalletFactory walletFactory;
 
-    public WalletController(UserService userService, WalletService walletService) {
+    public WalletController(UserService userService, WalletService walletService, WalletFactory walletFactory) {
         this.userService = userService;
         this.walletService = walletService;
+        this.walletFactory = walletFactory;
     }
+
 
     // --------------------------------------------------------------------
     // Get Wallet Balance
@@ -44,7 +48,7 @@ public class WalletController {
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
-        Wallet wallet = walletService.getWallet(user);
+        Wallet wallet = walletFactory.getOrCreateWallet(user);
         logger.info("User {} wallet balance fetched: {}", user.getEmail(), wallet.getBalance());
 
         LoadMoneyResponse response = walletService.toLoadMoneyResponse(wallet);

@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.example.digitalWalletApp.service.wallet.WalletFactory;
+
 
 @RestController
 @RequestMapping("/api/users")
@@ -29,6 +31,10 @@ public class UserController {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private WalletFactory walletFactory;
+
+
 
     @GetMapping("/me")
     public ResponseEntity<UserInfoResponse> getMyInfo(@RequestHeader(HttpHeaders.AUTHORIZATION) String authHeader) {
@@ -37,7 +43,7 @@ public class UserController {
         User user = userService.getUserFromToken(authHeader);
         if (user == null) throw new UnauthorizedException("Unauthorized access");
 
-        Wallet wallet = walletService.getWallet(user);
+        Wallet wallet = walletFactory.getOrCreateWallet(user);
         logger.info("User info fetched for email: {}, balance: {}", user.getEmail(), wallet.getBalance());
 
         UserInfoResponse dto = userMapper.toDTO(user, wallet.getBalance());
