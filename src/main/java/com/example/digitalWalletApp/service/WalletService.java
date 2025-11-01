@@ -99,7 +99,7 @@ public class WalletService {
     /*
     Simulates artificial delay (used for concurrency testing).
     Helps you observe optimistic locking in action when multiple threads update same wallet.
-     */
+    */
     // --------------------------------------------------------------------
 // LOAD MONEY (with retries + optimistic locking)
 // --------------------------------------------------------------------
